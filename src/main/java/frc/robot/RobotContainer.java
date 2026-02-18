@@ -10,6 +10,7 @@ package frc.robot;
 import static frc.robot.subsystems.misc.AuxMotorConstants.slowSpeed;
 
 import com.pathplanner.lib.auto.AutoBuilder;
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.GenericHID;
@@ -27,6 +28,8 @@ import frc.robot.subsystems.drive.ModuleIO;
 import frc.robot.subsystems.drive.ModuleIOSim;
 import frc.robot.subsystems.drive.ModuleIOSpark;
 import frc.robot.subsystems.misc.AuxMotor;
+import frc.robot.subsystems.misc.Pivot;
+import frc.robot.subsystems.misc.PivotConstants;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
 /**
@@ -39,9 +42,11 @@ public class RobotContainer {
   // Subsystems
   private final Drive drive;
   private final AuxMotor auxMotor;
+  private final Pivot pivot;
 
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
+  private final CommandXboxController pivotController = new CommandXboxController(1);
 
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
@@ -72,6 +77,7 @@ public class RobotContainer {
                 new ModuleIOSpark(2),
                 new ModuleIOSpark(3));
         auxMotor = new AuxMotor(true);
+        pivot = new Pivot(true);
         break;
 
       case SIM:
@@ -84,6 +90,7 @@ public class RobotContainer {
                 new ModuleIOSim(),
                 new ModuleIOSim());
         auxMotor = new AuxMotor(false);
+        pivot = new Pivot(false);
         break;
 
       default:
@@ -96,6 +103,7 @@ public class RobotContainer {
                 new ModuleIO() {},
                 new ModuleIO() {});
         auxMotor = new AuxMotor(false);
+        pivot = new Pivot(false);
         break;
     }
 
@@ -165,6 +173,15 @@ public class RobotContainer {
     auxMotor.setDefaultCommand(
         Commands.run(
             () -> auxMotor.setPercent(-controller.getRightTriggerAxis() * slowSpeed), auxMotor));
+
+    // Pivot control on second controller left joystick (Y axis)
+    pivot.setDefaultCommand(
+        Commands.run(
+            () ->
+                pivot.setPercent(
+                    MathUtil.applyDeadband(-pivotController.getLeftY(), PivotConstants.deadband)
+                        * PivotConstants.maxOutput),
+            pivot));
   }
 
   /**
