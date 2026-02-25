@@ -96,6 +96,13 @@ dependencies {
 
     def akitJson = new groovy.json.JsonSlurper().parseText(new File(projectDir.getAbsolutePath() + "/vendordeps/AdvantageKit.json").text)
     annotationProcessor "org.littletonrobotics.akit:akit-autolog:$akitJson.version"
+    implementation "org.littletonrobotics.akit:akit-java:$akitJson.version"
+
+    def urclJson = new groovy.json.JsonSlurper().parseText(new File(projectDir.getAbsolutePath() + "/vendordeps/URCL.json").text)
+    implementation "org.littletonrobotics.urcl:URCL-java:$urclJson.version"
+
+    def revJson = new groovy.json.JsonSlurper().parseText(new File(projectDir.getAbsolutePath() + "/vendordeps/REVLib.json").text)
+    implementation "com.revrobotics.frc:REVLib-java:$revJson.version"
 }
 
 test {

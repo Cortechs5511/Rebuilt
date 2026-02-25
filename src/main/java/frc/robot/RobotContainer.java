@@ -45,8 +45,8 @@ public class RobotContainer {
   private final Pivot pivot;
 
   // Controller
-  private final CommandXboxController controller = new CommandXboxController(0);
-  private final CommandXboxController pivotController = new CommandXboxController(1);
+  private final CommandXboxController controller = new CommandXboxController(1);
+  private final CommandXboxController operatorController = new CommandXboxController(2);
 
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
@@ -69,13 +69,32 @@ public class RobotContainer {
         if (!gyroCheck.connected) {
           gyro = new GyroIONavX();
         }
-        drive =
-            new Drive(
-                gyro,
-                new ModuleIOSpark(0),
-                new ModuleIOSpark(1),
-                new ModuleIOSpark(2),
-                new ModuleIOSpark(3));
+        // Create modules robustly: try to construct each ModuleIOSpark and probe it.
+        // If a module doesn't respond (no SparkMax/CANcoder present), fall back to a
+        // noop ModuleIO to avoid crashing during Robot startup when hardware is missing.
+        ModuleIO[] modules = new ModuleIO[4];
+        for (int i = 0; i < 4; i++) {
+          try {
+            ModuleIOSpark candidate = new ModuleIOSpark(i);
+            var probe = new ModuleIO.ModuleIOInputs();
+            try {
+              candidate.updateInputs(probe);
+            } catch (Exception ignored) {
+              // If probing throws, we'll treat the module as not present
+            }
+            if (!probe.driveConnected && !probe.turnConnected) {
+              modules[i] = new ModuleIO() {};
+            } else {
+              modules[i] = candidate;
+            }
+          } catch (Exception e) {
+            // Construction failed; use noop stub and continue
+            e.printStackTrace();
+            modules[i] = new ModuleIO() {};
+          }
+        }
+
+        drive = new Drive(gyro, modules[0], modules[1], modules[2], modules[3]);
         auxMotor = new AuxMotor(true);
         pivot = new Pivot(true);
         break;
@@ -137,24 +156,25 @@ public class RobotContainer {
    * edu.wpi.first.wpilibj2.command.button.JoystickButton}.
    */
   private void configureButtonBindings() {
-    // Default command, translation on left stick and rotation on right stick
+    // Default command: translation on left stick and continuous rotation from
+    // the right stick X axis (deadbanding and squaring handled in DriveCommands).
     drive.setDefaultCommand(
         DriveCommands.joystickDrive(
             drive,
-            () -> -controller.getHID().getRawAxis(1),
-            () -> -controller.getHID().getRawAxis(0),
-            () -> -controller.getHID().getRawAxis(4)));
+            () -> -controller.getLeftY(),
+            () -> -controller.getLeftX(),
+            () -> -controller.getRightX()));
 
-    // Lock to 0° when A button is held
+    // Reduced-speed field-relative drive while holding A; maintain current heading
     controller
         .a()
         .whileTrue(
             DriveCommands.joystickDriveAtAngle(
                 drive,
-                () -> -controller.getHID().getRawAxis(1),
-                () -> -controller.getHID().getRawAxis(0),
-                () -> Rotation2d.kZero));
-
+                () -> -controller.getLeftY() * 0.55,
+                () -> -controller.getLeftX() * 0.55,
+                // Without aimbot: keep the robot's current heading
+                () -> drive.getRotation()));
     // Switch to X pattern when X button is pressed
     controller.x().onTrue(Commands.runOnce(drive::stopWithX, drive));
 
