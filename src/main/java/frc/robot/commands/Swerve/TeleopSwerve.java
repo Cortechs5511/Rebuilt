@@ -29,8 +29,7 @@ public class TeleopSwerve extends Command {
     forward = Math.copySign(Math.pow(Math.abs(forward), OIConstants.TRANSLATION_EXPO), forward);
     strafe = Math.copySign(Math.pow(Math.abs(strafe), OIConstants.TRANSLATION_EXPO), strafe);
     rotation = Math.copySign(Math.pow(Math.abs(rotation), OIConstants.ROTATION_EXPO), rotation);
-
-    // fieldRelative = true for driver-friendly control
     swerve.drive(forward, strafe, rotation, true, false, false);
   }
 }
+

@@ -141,13 +141,13 @@ public final class Constants {
   public static final boolean[] DRIVE_MOTOR_INVERTED = {false, false, false, false};
   public static final boolean[] TURN_MOTOR_INVERTED = {false, false, false, false};
   // CANcoder mechanical zero offsets in radians. Tune on robot if wheel zeros do not match.
-  public static final double[] CANCODER_OFFSETS_RAD = {0.0, 0.0, 0.0, 0.0};
+  public static final double[] CANCODER_OFFSETS_RAD = {-2.28102, -2.28102, -2.28102, -2.28102};
 
     // PID Values
     
     
     public static final double[] DRIVE_PID_VALUES = {0.015, 0.0, 0.0};
-    public static final double[] TURN_PID_VALUES = {.73, 0.0, 0};
+    public static final double[] TURN_PID_VALUES = {0.35, 0.0, 0.0};
 
     public static final double ANGLE_MAX_VELOCITY = 7.0;
     public static final double ANGLE_MAX_ACCELERATION = 30.0;
@@ -199,3 +199,4 @@ public final class Constants {
     public static final double RIGHT_REEF_TRANSLATION = -.1; // meters 
   }
 }
+

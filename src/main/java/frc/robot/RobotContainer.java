@@ -11,6 +11,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.commands.Swerve.TeleopSwerve;
 import frc.robot.subsystems.Swerve.SwerveSubsystem;
+import frc.robot.subsystems.intake.Wheel;
 
 /**
  * Minimal RobotContainer focused on teleop swerve mapping.
@@ -18,32 +19,29 @@ import frc.robot.subsystems.Swerve.SwerveSubsystem;
  */
 public class RobotContainer {
   private final SwerveSubsystem m_swerveSubsystem = new SwerveSubsystem();
+  private final Wheel m_intakeWheel = new Wheel();
   private final CommandXboxController m_driverController = new CommandXboxController(0);
+  private final CommandXboxController m_operatorController = new CommandXboxController(1);
   private final SendableChooser<Command> autoChooser = new SendableChooser<>();
 
   public RobotContainer() {
     SmartDashboard.putData("Auto chooser", autoChooser);
 
-    // Single default command to avoid conflicting teleop behavior.
+    // Default teleop swerve mapping: left stick translation, right stick X rotation.
     m_swerveSubsystem.setDefaultCommand(new TeleopSwerve(m_swerveSubsystem, m_driverController));
+
+    // Operator controls intake wheel; driver stays focused on swerve.
+    m_intakeWheel.setDefaultCommand(
+        Commands.run(
+            () ->
+                m_intakeWheel.setFromTriggers(
+                    m_operatorController.getLeftTriggerAxis(), m_operatorController.getRightTriggerAxis()),
+            m_intakeWheel));
 
     configureBindings();
   }
 
   private void configureBindings() {
-    // Hold A: translation only, no rotation.
-    m_driverController.a().whileTrue(
-        Commands.run(
-            () ->
-                m_swerveSubsystem.drive(
-                    -m_driverController.getLeftY(),
-                    -m_driverController.getLeftX(),
-                    0.0,
-                    true,
-                    false,
-                    false),
-            m_swerveSubsystem));
-
     // Press X: stop with wheel X-lock.
     m_driverController.x().onTrue(Commands.runOnce(m_swerveSubsystem::stopWithX, m_swerveSubsystem));
 

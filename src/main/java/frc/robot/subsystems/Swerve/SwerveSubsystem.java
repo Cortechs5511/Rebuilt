@@ -45,9 +45,11 @@ public class SwerveSubsystem extends SubsystemBase {
         // Initialize the swerve modules
         modules = new SwerveModule[] {
             new SwerveModule(SwerveConstants.IDS[0], SwerveConstants.IDS[1], SwerveConstants.IDS[2], SwerveConstants.DRIVE_MOTOR_INVERTED[0], SwerveConstants.TURN_MOTOR_INVERTED[0], SwerveConstants.CANCODER_OFFSETS_RAD[0]),
-            new SwerveModule(SwerveConstants.IDS[3], SwerveConstants.IDS[4], SwerveConstants.IDS[5], SwerveConstants.DRIVE_MOTOR_INVERTED[1], SwerveConstants.TURN_MOTOR_INVERTED[1], SwerveConstants.CANCODER_OFFSETS_RAD[1]),
-            new SwerveModule(SwerveConstants.IDS[6], SwerveConstants.IDS[7], SwerveConstants.IDS[8], SwerveConstants.DRIVE_MOTOR_INVERTED[2], SwerveConstants.TURN_MOTOR_INVERTED[2], SwerveConstants.CANCODER_OFFSETS_RAD[2]),
-            new SwerveModule(SwerveConstants.IDS[9], SwerveConstants.IDS[10], SwerveConstants.IDS[11], SwerveConstants.DRIVE_MOTOR_INVERTED[3], SwerveConstants.TURN_MOTOR_INVERTED[3], SwerveConstants.CANCODER_OFFSETS_RAD[3]),
+            // TEMP: only CANcoder 1 is online; use ID 1 for all modules until 2/3/4 are fixed.
+            new SwerveModule(SwerveConstants.IDS[3], SwerveConstants.IDS[4], SwerveConstants.IDS[2], SwerveConstants.DRIVE_MOTOR_INVERTED[1], SwerveConstants.TURN_MOTOR_INVERTED[1], SwerveConstants.CANCODER_OFFSETS_RAD[1]),
+            new SwerveModule(SwerveConstants.IDS[6], SwerveConstants.IDS[7], SwerveConstants.IDS[2], SwerveConstants.DRIVE_MOTOR_INVERTED[2], SwerveConstants.TURN_MOTOR_INVERTED[2], SwerveConstants.CANCODER_OFFSETS_RAD[2]),
+            new SwerveModule(SwerveConstants.IDS[9], SwerveConstants.IDS[10], SwerveConstants.IDS[2], SwerveConstants.DRIVE_MOTOR_INVERTED[3], SwerveConstants.TURN_MOTOR_INVERTED[3], SwerveConstants.CANCODER_OFFSETS_RAD[3]),
+            // Original IDs for these 3 lines were IDS[5], IDS[8], IDS[11].
         };
         // Initalize kinematic objects
         kinematics = new SwerveDriveKinematics(
@@ -198,8 +200,19 @@ public class SwerveSubsystem extends SubsystemBase {
     }
 
     public void driveRobotRelative(ChassisSpeeds robotRelativeSpeeds) {
+        final double linearDeadbandMps = 0.02;
+        final double angularDeadbandRadPerSec = 0.02;
+
+        // When no chassis motion is requested, hold module angles to prevent idle hunting.
+        if (Math.abs(robotRelativeSpeeds.vxMetersPerSecond) < linearDeadbandMps
+                && Math.abs(robotRelativeSpeeds.vyMetersPerSecond) < linearDeadbandMps
+                && Math.abs(robotRelativeSpeeds.omegaRadiansPerSecond) < angularDeadbandRadPerSec) {
+            stop();
+            return;
+        }
+
         ChassisSpeeds targetSpeeds = ChassisSpeeds.discretize(robotRelativeSpeeds, 0.02);
-    
+
         SwerveModuleState[] targetStates = kinematics.toSwerveModuleStates(targetSpeeds);
         setStates(targetStates);
     }
@@ -283,3 +296,4 @@ public class SwerveSubsystem extends SubsystemBase {
     }
     
 }
+

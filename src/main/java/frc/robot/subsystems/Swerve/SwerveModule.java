@@ -72,8 +72,18 @@ public class SwerveModule {
         SwerveModuleState optimizedState = SwerveModuleState.optimize(targetState, currentAngle);
 
         // calculate the motor output + set the motor states
-        double driveOutput = drivePID.calculate(getVelocity(), optimizedState.speedMetersPerSecond);
+        // Add a normalized feedforward term so requested wheel speed maps directly to motor output.
+        double driveFeedforward = optimizedState.speedMetersPerSecond / SwerveConstants.MAX_TRANSLATIONAL_SPEED;
+        double driveFeedback = drivePID.calculate(getVelocity(), optimizedState.speedMetersPerSecond);
+        double driveOutput = driveFeedforward + driveFeedback;
         double turnOutput = turnPID.calculate(getAngle().getRadians(), optimizedState.angle.getRadians());
+
+        // Suppress small angle-hunting around setpoint to reduce module twitch.
+        double angleErrorRad = MathUtil.angleModulus(optimizedState.angle.getRadians() - currentAngle.getRadians());
+        if (Math.abs(angleErrorRad) < Math.toRadians(1.5)) {
+            turnOutput = 0.0;
+        }
+
         driveOutput = MathUtil.clamp(driveOutput, -1.0, 1.0);
         turnOutput = MathUtil.clamp(turnOutput, -1.0, 1.0);
         
