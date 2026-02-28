@@ -4,6 +4,9 @@
 
 package frc.robot;
 
+import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -11,7 +14,11 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.commands.Swerve.TeleopSwerve;
 import frc.robot.subsystems.Swerve.SwerveSubsystem;
+import frc.robot.subsystems.intake.AprilTag;
 import frc.robot.subsystems.intake.Wheel;
+import frc.robot.subsystems.intake.auto.BlueLeftAuto;
+import frc.robot.subsystems.intake.intake;
+
 
 /**
  * Minimal RobotContainer focused on teleop swerve mapping.
@@ -19,7 +26,9 @@ import frc.robot.subsystems.intake.Wheel;
  */
 public class RobotContainer {
   private final SwerveSubsystem m_swerveSubsystem = new SwerveSubsystem();
+  private final AprilTag m_aprilTag = new AprilTag();
   private final Wheel m_intakeWheel = new Wheel();
+  private final intake m_intakePivot = new intake();
   private final CommandXboxController m_driverController = new CommandXboxController(0);
   private final CommandXboxController m_operatorController = new CommandXboxController(1);
   private final SendableChooser<Command> autoChooser = new SendableChooser<>();
@@ -30,13 +39,20 @@ public class RobotContainer {
     // Default teleop swerve mapping: left stick translation, right stick X rotation.
     m_swerveSubsystem.setDefaultCommand(new TeleopSwerve(m_swerveSubsystem, m_driverController));
 
-    // Operator controls intake wheel; driver stays focused on swerve.
+    // Operator controls intake pivot with right Y axis.
+    m_intakePivot.setDefaultCommand(
+        Commands.run(
+            () -> m_intakePivot.setPivotFromJoystick(m_operatorController.getRightY()), m_intakePivot));
+
+    // Operator controls intake wheel with triggers.
     m_intakeWheel.setDefaultCommand(
         Commands.run(
             () ->
                 m_intakeWheel.setFromTriggers(
                     m_operatorController.getLeftTriggerAxis(), m_operatorController.getRightTriggerAxis()),
             m_intakeWheel));
+
+    autoChooser.setDefaultOption("BlueLeftAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag));
 
     configureBindings();
   }
@@ -47,10 +63,58 @@ public class RobotContainer {
 
     // Press B: reset gyro heading to 0 degrees.
     m_driverController.b().onTrue(Commands.runOnce(() -> m_swerveSubsystem.resetGyro(0.0), m_swerveSubsystem));
+
+    // Hold A on operator controller for explicit intake action.
+    m_operatorController
+        .a()
+        .whileTrue(Commands.startEnd(m_intakeWheel::intakeIn, m_intakeWheel::stop, m_intakeWheel));
+
+    // Press Y to scan visible AprilTag IDs and run the configured action.
+    // Current configured action: if ID 23 is found, rotate to 45 degrees.
+    m_driverController
+        .y()
+        .onTrue(createScanAndRunTagCommand());
+
+  }
+
+  private Command createScanAndRunTagCommand() {
+    final int targetTagId = 23;
+    final double targetHeadingDeg = 45.0;
+    final double headingKp = 2.4;
+    final double maxOmegaRadPerSec = 2.0;
+    final double headingToleranceDeg = 2.0;
+
+    return Commands.sequence(
+        Commands.runOnce(() -> m_aprilTag.updateOriginFromAlliance(edu.wpi.first.wpilibj.DriverStation.getAlliance())),
+        Commands.waitUntil(() -> m_aprilTag.getBestVisibleTarget()
+            .map(target -> target.getFiducialId() == targetTagId)
+            .orElse(false)).withTimeout(1.5),
+        Commands.run(
+            () -> {
+              double currentHeadingRad = m_swerveSubsystem.getPose().getRotation().getRadians();
+              double targetHeadingRad = Math.toRadians(targetHeadingDeg);
+              double errorRad = MathUtil.angleModulus(targetHeadingRad - currentHeadingRad);
+              double omega = MathUtil.clamp(errorRad * headingKp, -maxOmegaRadPerSec, maxOmegaRadPerSec);
+              m_swerveSubsystem.driveFieldRelative(new ChassisSpeeds(0.0, 0.0, omega));
+            },
+            m_swerveSubsystem)
+            .until(() -> {
+              double currentHeadingRad = m_swerveSubsystem.getPose().getRotation().getRadians();
+              double targetHeadingRad = Math.toRadians(targetHeadingDeg);
+              return Math.abs(MathUtil.angleModulus(targetHeadingRad - currentHeadingRad))
+                  <= Math.toRadians(headingToleranceDeg);
+            })
+            .withTimeout(1.5),
+        Commands.runOnce(m_swerveSubsystem::stop, m_swerveSubsystem));
   }
 
   /** Returns selected autonomous command or null. */
   public Command getAutonomousCommand() {
-    return autoChooser.getSelected();
+    Command selected = autoChooser.getSelected();
+    if (selected != null) {
+      return selected;
+    }
+    DriverStation.reportWarning("Auto chooser returned null, falling back to BlueLeftAuto.", false);
+    return BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag);
   }
 }

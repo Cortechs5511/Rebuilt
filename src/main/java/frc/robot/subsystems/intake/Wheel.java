@@ -11,7 +11,7 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 public class Wheel extends SubsystemBase {
   private static final int WHEEL_MOTOR_ID = 51;
-  private static final double MAX_OUTPUT = 1.0;
+  private static final double MAX_OUTPUT = 0.7;
   private static final double TRIGGER_DEADBAND = 0.05;
 
   // Positive output is defined as clockwise for this intake wheel.
@@ -25,12 +25,16 @@ public class Wheel extends SubsystemBase {
     wheelMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
   }
 
+  public void intakeIn() {
+    wheelMotor.set(0.9);
+  }
+
   public void setFromTriggers(double leftTrigger, double rightTrigger) {
     double left = MathUtil.applyDeadband(leftTrigger, TRIGGER_DEADBAND);
     double right = MathUtil.applyDeadband(rightTrigger, TRIGGER_DEADBAND);
 
-    // Left trigger = counterclockwise, right trigger = clockwise.
-    double output = (right - left) * MAX_OUTPUT;
+    // Left trigger = clockwise, right trigger = counterclockwise.
+    double output = (left - right) * MAX_OUTPUT;
     wheelMotor.set(MathUtil.clamp(output, -1.0, 1.0));
   }
 

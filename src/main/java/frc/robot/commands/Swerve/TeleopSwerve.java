@@ -29,7 +29,8 @@ public class TeleopSwerve extends Command {
     forward = Math.copySign(Math.pow(Math.abs(forward), OIConstants.TRANSLATION_EXPO), forward);
     strafe = Math.copySign(Math.pow(Math.abs(strafe), OIConstants.TRANSLATION_EXPO), strafe);
     rotation = Math.copySign(Math.pow(Math.abs(rotation), OIConstants.ROTATION_EXPO), rotation);
-    swerve.drive(forward, strafe, rotation, true, false, false);
+    // Robot-relative control: left stick left always strafes robot left.
+    swerve.drive(forward, strafe, rotation, false, false, false);
   }
 }
 
