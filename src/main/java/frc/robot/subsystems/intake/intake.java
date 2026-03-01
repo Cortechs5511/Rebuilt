@@ -14,14 +14,19 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 public class intake extends SubsystemBase {
   private static final int PIVOT_MOTOR_ID = 5;
+  private static final double PIVOT_GEAR_RATIO = 45.0; // motor rotations : arm rotations
   private static final double PIVOT_DEADBAND = 0.10;
-  private static final double MAX_PIVOT_OUTPUT = 0.45;
+  private static final double MAX_MANUAL_OUTPUT = 0.30;
+  private static final double MAX_PIVOT_OUTPUT_DOWN = 0.18;
+  private static final double MAX_PIVOT_OUTPUT_UP = 0.30;
+  // If direction is opposite on robot, flip this to false.
+  private static final boolean POSITIVE_OUTPUT_MOVES_DOWN = true;
   private static final double PIVOT_KP = 0.08;
   private static final double PIVOT_KI = 0.0;
   private static final double PIVOT_KD = 0.0;
-  private static final double PIVOT_TOLERANCE_ROT = 0.75;
+  private static final double PIVOT_TOLERANCE_ROT = 0.75 / PIVOT_GEAR_RATIO;
   private static final double STOWED_POSITION_ROT = 0.0;
-  private static final double INTAKE_POSITION_ROT = 18.0;
+  private static final double INTAKE_POSITION_ROT = 18.0 / PIVOT_GEAR_RATIO;
 
   private final SparkMax pivotMotor = new SparkMax(PIVOT_MOTOR_ID, MotorType.kBrushless);
   private final RelativeEncoder pivotEncoder = pivotMotor.getEncoder();
@@ -35,16 +40,19 @@ public class intake extends SubsystemBase {
     config.idleMode(IdleMode.kBrake);
     config.smartCurrentLimit(25);
     config.inverted(false);
+    // Expose arm rotations in software instead of raw motor rotations.
+    config.encoder.positionConversionFactor(1.0 / PIVOT_GEAR_RATIO);
+    config.encoder.velocityConversionFactor(1.0 / PIVOT_GEAR_RATIO);
     pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
     pivotEncoder.setPosition(STOWED_POSITION_ROT);
     pivotController.setTolerance(PIVOT_TOLERANCE_ROT);
   }
 
   public void setPivotFromJoystick(double rightY) {
-    double output = MathUtil.applyDeadband(rightY, PIVOT_DEADBAND) * MAX_PIVOT_OUTPUT;
+    double output = MathUtil.applyDeadband(rightY, PIVOT_DEADBAND) * MAX_MANUAL_OUTPUT;
     if (Math.abs(output) > 0.0) {
       positionControlEnabled = false;
-      pivotMotor.set(MathUtil.clamp(output, -1.0, 1.0));
+      pivotMotor.set(clampPivotOutput(output));
       return;
     }
 
@@ -78,7 +86,7 @@ public class intake extends SubsystemBase {
   public void periodic() {
     if (positionControlEnabled) {
       double output = pivotController.calculate(getPivotPositionRot(), targetPositionRot);
-      pivotMotor.set(MathUtil.clamp(output, -MAX_PIVOT_OUTPUT, MAX_PIVOT_OUTPUT));
+      pivotMotor.set(clampPivotOutput(output));
     }
 
     SmartDashboard.putNumber("Intake/Pivot Position Rot", getPivotPositionRot());
@@ -89,5 +97,11 @@ public class intake extends SubsystemBase {
   public void stop() {
     positionControlEnabled = false;
     pivotMotor.stopMotor();
+  }
+
+  private double clampPivotOutput(double requestedOutput) {
+    double maxDown = POSITIVE_OUTPUT_MOVES_DOWN ? MAX_PIVOT_OUTPUT_DOWN : MAX_PIVOT_OUTPUT_UP;
+    double maxUp = POSITIVE_OUTPUT_MOVES_DOWN ? MAX_PIVOT_OUTPUT_UP : MAX_PIVOT_OUTPUT_DOWN;
+    return MathUtil.clamp(requestedOutput, -maxUp, maxDown);
   }
 }

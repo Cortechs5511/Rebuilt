@@ -15,6 +15,7 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.commands.Swerve.TeleopSwerve;
 import frc.robot.subsystems.Swerve.SwerveSubsystem;
 import frc.robot.subsystems.intake.AprilTag;
+import frc.robot.subsystems.intake.PivotWheels;
 import frc.robot.subsystems.intake.Wheel;
 import frc.robot.subsystems.intake.auto.BlueLeftAuto;
 import frc.robot.subsystems.intake.intake;
@@ -28,6 +29,7 @@ public class RobotContainer {
   private final SwerveSubsystem m_swerveSubsystem = new SwerveSubsystem();
   private final AprilTag m_aprilTag = new AprilTag();
   private final Wheel m_intakeWheel = new Wheel();
+  private final PivotWheels m_pivotWheels = new PivotWheels();
   private final intake m_intakePivot = new intake();
   private final CommandXboxController m_driverController = new CommandXboxController(0);
   private final CommandXboxController m_operatorController = new CommandXboxController(1);
@@ -58,8 +60,24 @@ public class RobotContainer {
   }
 
   private void configureBindings() {
-    // Press X: stop with wheel X-lock.
-    m_driverController.x().onTrue(Commands.runOnce(m_swerveSubsystem::stopWithX, m_swerveSubsystem));
+    // Hold X on driver controller for intake preset:
+    // lower intake bar + run pivot wheels + run blue intake wheels.
+    m_driverController
+        .x()
+        .whileTrue(
+            Commands.startEnd(
+                () -> {
+                  m_intakePivot.moveToIntakePosition();
+                  m_pivotWheels.intakeIn();
+                  m_intakeWheel.intakeIn();
+                },
+                () -> {
+                  m_pivotWheels.stop();
+                  m_intakeWheel.stop();
+                },
+                m_intakePivot,
+                m_pivotWheels,
+                m_intakeWheel));
 
     // Press B: reset gyro heading to 0 degrees.
     m_driverController.b().onTrue(Commands.runOnce(() -> m_swerveSubsystem.resetGyro(0.0), m_swerveSubsystem));
