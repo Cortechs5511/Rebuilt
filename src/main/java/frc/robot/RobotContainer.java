@@ -17,7 +17,7 @@ import frc.robot.subsystems.Swerve.SwerveSubsystem;
 import frc.robot.subsystems.intake.AprilTag;
 import frc.robot.subsystems.intake.PivotWheels;
 import frc.robot.subsystems.auto.BlueLeftAuto;
-import frc.robot.subsystems.intake.hopper.Hopper;
+import frc.robot.subsystems.intake.hopper.hopper;
 import frc.robot.subsystems.intake.intake;
 
 
@@ -28,7 +28,7 @@ import frc.robot.subsystems.intake.intake;
 public class RobotContainer {
   private final SwerveSubsystem m_swerveSubsystem = new SwerveSubsystem();
   private final AprilTag m_aprilTag = new AprilTag();
-  private final Hopper m_hopper = new Hopper();
+  private final hopper m_hopper = new hopper();
   private final PivotWheels m_pivotWheels = new PivotWheels();
   private final intake m_intakePivot = new intake();
   private final CommandXboxController m_driverController = new CommandXboxController(0);
