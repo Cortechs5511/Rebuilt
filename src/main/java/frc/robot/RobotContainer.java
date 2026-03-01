@@ -74,6 +74,7 @@ public class RobotContainer {
                 () -> {
                   m_pivotWheels.stop();
                   m_hopper.stop();
+                  m_intakePivot.moveToStowedPosition();
                 },
                 m_intakePivot,
                 m_pivotWheels,
