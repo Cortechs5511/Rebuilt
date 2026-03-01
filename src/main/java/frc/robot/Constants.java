@@ -48,8 +48,17 @@ public final class Constants {
   // Keep module/electrical order aligned with IDS array above: FL, FR, BL, BR.
   public static final boolean[] DRIVE_MOTOR_INVERTED = {false, false, false, false};
   public static final boolean[] TURN_MOTOR_INVERTED = {false, false, false, false};
-  // CANcoder mechanical zero offsets in radians. Tune on robot if wheel zeros do not match.
-  public static final double[] CANCODER_OFFSETS_RAD = {-2.28102, -2.28102, -2.28102, -2.28102};
+  // CANcoder mechanical zero offsets in radians for each module (FL, FR, BL, BR).
+  // These are the "absolute degree originals" — the raw CANcoder reading (in radians)
+  // that corresponds to the wheel pointing straight forward on each module.
+  // To tune: point all wheels straight forward, read each CANcoder's absolute position
+  // in radians, and enter those values here in FL/FR/BL/BR order.
+  public static final double[] CANCODER_OFFSETS_RAD = {
+    -2.28102, // FL (module 0) — CANcoder ID 1
+    -2.28102, // FR (module 1) — CANcoder ID 2
+    -2.28102, // BL (module 2) — CANcoder ID 3
+    -2.28102, // BR (module 3) — CANcoder ID 4
+  };
 
     // PID Values
     

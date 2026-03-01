@@ -21,6 +21,8 @@ public class SwerveModule {
     private SparkMax driveMotor;
     private SparkMax turnMotor;
     private CoreCANcoder absoluteEncoder;
+    // The raw CANcoder reading (in radians) when the wheel points straight forward.
+    // Declared per module in Constants.SwerveConstants.CANCODER_OFFSETS_RAD (FL/FR/BL/BR order).
     private final double absoluteOffsetRad;
 
     private RelativeEncoder driveEncoder;
