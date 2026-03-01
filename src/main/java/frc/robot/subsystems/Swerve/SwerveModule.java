@@ -27,15 +27,15 @@ public class SwerveModule {
 
 
     public SwerveModule(int driveMotorPort, int turningMotorPort, int absoluteEncoderPort, boolean driveInverted, boolean turnInverted, double angleOffsetRad) {
-        driveMotor = createMotorController(driveMotorPort, driveInverted);
-        turnMotor = createMotorController(turningMotorPort, turnInverted);
+        driveMotor = createMotorController(driveMotorPort, driveInverted, true);
+        turnMotor = createMotorController(turningMotorPort, turnInverted, false);
         absoluteEncoder = new CoreCANcoder(absoluteEncoderPort);
         absoluteOffsetRad = angleOffsetRad;
 
         driveEncoder = createEncoder(driveMotor);
     }
 
-    private SparkMax createMotorController(int port, boolean isInverted) {
+    private SparkMax createMotorController(int port, boolean isInverted, boolean isDriveMotor) {
         SparkMax controller = new SparkMax(port, MotorType.kBrushless);
         SparkMaxConfig config = new SparkMaxConfig();
 
@@ -48,8 +48,12 @@ public class SwerveModule {
 
         config.inverted(isInverted);
 
-        config.encoder.velocityConversionFactor(SwerveConstants.VELOCITY_CONVERSION_FACTOR);
-        config.encoder.positionConversionFactor(SwerveConstants.POSITION_CONVERSION_FACTOR);
+        // Drive encoder conversion factors are wheel-distance conversions and only apply to the drive motor.
+        // The turn motor uses the CANcoder (absolute encoder) for angle, not its relative encoder.
+        if (isDriveMotor) {
+            config.encoder.velocityConversionFactor(SwerveConstants.VELOCITY_CONVERSION_FACTOR);
+            config.encoder.positionConversionFactor(SwerveConstants.POSITION_CONVERSION_FACTOR);
+        }
         // for some reason causes robot to shake:
         //     controller.burnFlash(); 
         controller.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);

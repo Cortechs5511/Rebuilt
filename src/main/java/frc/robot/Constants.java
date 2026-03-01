@@ -38,9 +38,10 @@ public final class Constants {
 
     public static final int THROUGH_BORE_ID = 8;
 
-    // MAX and MIN position of wrist
-    public static final double MAX_WRIST_POS = 0.35;
-    public static final double MIN_WRIST_POS = 0.89;
+    // Wrist encoder reads LOWER values when raised and HIGHER values when lowered/extended.
+    // MIN_WRIST_POS is the fully-raised (retracted) limit; MAX_WRIST_POS is the fully-lowered (extended) limit.
+    public static final double MIN_WRIST_POS = 0.35;
+    public static final double MAX_WRIST_POS = 0.89;
     public static final double PASSIVE_FALL_TOP = .5; // position where the wrist no longer falls down passively
     public static final double PASSIVE_FALL_BOT = .8; // position where we no longer need a passive boost to prevent wrist from falling
     public static final double PASSIVE_POWER = .03;
@@ -62,7 +63,7 @@ public final class Constants {
     public static final double POWER = 0.1 ;
 
     public static final double SPIKE_THRESHOLD = .05;
-    public static final double SPIKE_DURATION = 0.0;  
+    public static final double SPIKE_DURATION = 0.1;  
 
   }
 
@@ -95,7 +96,7 @@ public final class Constants {
     public static final double RAMP_RATE = 0.05;
 
     // Update later
-    public static final double POSITION_CONVERSION_FACTOR = 50 * 22 / 12;
+    public static final double POSITION_CONVERSION_FACTOR = 50.0 * 22 / 12;
 
     // POWER STUFF
     public static final double MAX_POWER = 1.0;
