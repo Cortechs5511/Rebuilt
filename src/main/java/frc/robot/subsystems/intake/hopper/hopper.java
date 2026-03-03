@@ -18,12 +18,15 @@ public class hopper extends SubsystemBase {
 
   @SuppressWarnings("deprecation")
   public hopper() {
-    SparkFlexConfig config = new SparkFlexConfig();
-    config.idleMode(IdleMode.kBrake);
-    config.smartCurrentLimit(40);
-    config.inverted(false);
-    hopperMotor.configure(
-        config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+  SparkFlexConfig config = new SparkFlexConfig();
+  config.idleMode(IdleMode.kBrake);
+  config.smartCurrentLimit(40);
+  config.inverted(false);
+  // Neo vortex is 1:1 gear ratio on the hopper so expose wheel rotations directly
+  // (motor rotations = wheel rotations). This sets encoder conversions to 1:1.
+  config.encoder.positionConversionFactor(1.0);
+  config.encoder.velocityConversionFactor(1.0);
+  hopperMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
   }
 
   public void intakeIn() {
