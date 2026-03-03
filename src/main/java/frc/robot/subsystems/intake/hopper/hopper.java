@@ -10,7 +10,7 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 public class hopper extends SubsystemBase {
-  private static final int HOPPER_MOTOR_ID = 6;
+  private static final int HOPPER_MOTOR_ID = 10;
   private static final double MAX_OUTPUT = 0.7;
   private static final double TRIGGER_DEADBAND = 0.05;
 

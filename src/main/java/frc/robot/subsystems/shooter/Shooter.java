@@ -1,7 +1,7 @@
 package frc.robot.subsystems.shooter;
 
 import com.ctre.phoenix6.hardware.TalonFX;
-import java.lang.reflect.Method;
+import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkMaxConfig;
@@ -30,9 +30,10 @@ public class Shooter extends SubsystemBase {
   private final TalonFX kraken1 = new TalonFX(KRAKEN_1_ID);
   private final TalonFX kraken2 = new TalonFX(KRAKEN_2_ID);
 
-  // Simple follower mode: when enabled the shooter will read the encoder
-  // velocities and command the motors to follow those values (scaled).
-  private boolean encoderFollowerEnabled = false;
+  // NOTE: encoder follower mode removed for safety — shooters should be
+  // commanded at a fixed speed rather than following another motor's
+  // measured velocity. Keep a tunable max velocity constant for diagnostics
+  // if needed.
   private static final double MAX_ENCODER_VELOCITY = 6000.0; // tune per hardware
 
   public Shooter() {
@@ -50,30 +51,11 @@ public class Shooter extends SubsystemBase {
 
   @Override
   public void periodic() {
-    // If encoder follower mode is enabled, read encoder velocities from
-    // the Kraken controllers and command the motors to follow that
-    // velocity (scaled to [-1,1]). This lets an external encoder
-    // measurement drive the shooter outputs.
-    if (encoderFollowerEnabled) {
-  // Read velocities from TalonFX built-in sensors. Phoenix6 uses the
-  // getRotorVelocity() accessor which returns a Measurement object.
-  double v1 = kraken1.getRotorVelocity().getValueAsDouble();
-  double v2 = kraken2.getRotorVelocity().getValueAsDouble();
-      double s1 = Math.max(-1.0, Math.min(1.0, v1 / MAX_ENCODER_VELOCITY));
-      double s2 = Math.max(-1.0, Math.min(1.0, v2 / MAX_ENCODER_VELOCITY));
-      // Command TalonFX percent output via reflection (handles different Phoenix6 method names)
-      talonSetPercent(kraken1, s1);
-      talonSetPercent(kraken2, s2);
-      // Mirror to NEOs so all shooter wheels spin together
-      neo1.set((s1 + s2) / 2.0);
-      neo2.set((s1 + s2) / 2.0);
-    }
+    // No periodic follower action for the shooter. Use explicit commands
+    // (spinAll/stop) to control shooter speed.
   }
 
-  /** Enable/disable encoder follower mode. */
-  public void setEncoderFollowerEnabled(boolean enabled) {
-    encoderFollowerEnabled = enabled;
-  }
+  // Encoder-follower control intentionally removed for shooter safety.
 
   /** Read integrated Kraken encoder position (rotations). */
   public double getKraken1Position() {
@@ -103,8 +85,9 @@ public class Shooter extends SubsystemBase {
   /** Spin all shooter wheels at the given speed ([-1,1]). */
   public void spinAll(double speed) {
     double s = Math.max(-1.0, Math.min(1.0, speed));
-    talonSetPercent(kraken1, s);
-    talonSetPercent(kraken2, s);
+    // Use Phoenix 6 DutyCycleOut control to set percent output on TalonFX.
+    kraken1.setControl(new DutyCycleOut(s));
+    kraken2.setControl(new DutyCycleOut(s));
     neo1.set(s);
     neo2.set(s);
   }
@@ -112,47 +95,9 @@ public class Shooter extends SubsystemBase {
   /** Stop all shooter motors. */
   public void stop() {
     // Stop TalonFX outputs
-    talonSetPercent(kraken1, 0.0);
-    talonSetPercent(kraken2, 0.0);
+    kraken1.setControl(new DutyCycleOut(0.0));
+    kraken2.setControl(new DutyCycleOut(0.0));
     neo1.stopMotor();
     neo2.stopMotor();
   }
-
-  /** Try to set a TalonFX percent-output using reflection to accommodate Phoenix6 API differences. */
-  private void talonSetPercent(TalonFX talon, double output) {
-    try {
-      // Try common method names first
-      Method m = null;
-      try {
-        m = talon.getClass().getMethod("setPercentOutput", double.class);
-      } catch (NoSuchMethodException ignored) {
-      }
-      if (m == null) {
-        try {
-          m = talon.getClass().getMethod("set", double.class);
-        } catch (NoSuchMethodException ignored) {
-        }
-      }
-      // Last resort: find any single-double setter method whose name contains "percent" or "set"
-      if (m == null) {
-        for (Method cand : talon.getClass().getMethods()) {
-          Class<?>[] params = cand.getParameterTypes();
-          if (params.length == 1 && params[0] == double.class) {
-            String name = cand.getName().toLowerCase();
-            if (name.contains("percent") || name.equals("set")) {
-              m = cand;
-              break;
-            }
-          }
-        }
-      }
-      if (m != null) {
-        m.invoke(talon, output);
-      }
-    } catch (Exception e) {
-      // Reflection failure - avoid crashing robot code. In deployment, replace with direct TalonFX API calls.
-      // Optionally log once to SmartDashboard (omitted here to keep periodic fast).
-    }
-  }
-  
 }

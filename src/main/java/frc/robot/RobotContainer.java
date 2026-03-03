@@ -57,7 +57,14 @@ public class RobotContainer {
                     m_operatorController.getLeftTriggerAxis(), m_operatorController.getRightTriggerAxis()),
             m_hopper));
 
-  autoChooser.setDefaultOption("BlueLeftAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter));
+    autoChooser.setDefaultOption("BlueLeftAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter));
+    // Provide other (placeholder/fallback) options so the driver station chooser
+    // has multiple selections. These currently reuse BlueLeftAuto implementation
+    // as a safe fallback until specific auto implementations are added.
+    autoChooser.addOption("BlueMiddleAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter));
+    autoChooser.addOption("BlueRightAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter));
+    autoChooser.addOption("RedLeftAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter));
+    autoChooser.addOption("RedMiddleAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter));
 
     configureBindings();
   }
