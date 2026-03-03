@@ -14,6 +14,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.Swerve.SwerveSubsystem;
 import frc.robot.subsystems.intake.AprilTag;
+import frc.robot.subsystems.shooter.Shooter;
 import java.util.Optional;
 import java.util.Set;
 
@@ -41,12 +42,16 @@ public class BlueLeftAuto {
 
     private BlueLeftAuto() {}
 
-    public static Command build(SwerveSubsystem swerveSubsystem, AprilTag aprilTag) {
+    public static Command build(SwerveSubsystem swerveSubsystem, AprilTag aprilTag, Shooter shooter) {
         return Commands.sequence(
                 Commands.runOnce(() -> aprilTag.updateOriginFromAlliance(DriverStation.getAlliance())),
                 followBlueLeftPath(swerveSubsystem),
                 createTagAlignCommand(swerveSubsystem, aprilTag),
                 rotateToHeading(swerveSubsystem, HUB_ROTATION),
+                // Spin shooter at 50% power for 2 seconds, then stop
+                Commands.runOnce(() -> shooter.spinAll(0.5), shooter),
+                Commands.waitSeconds(2.0),
+                Commands.runOnce(shooter::stop, shooter),
                 Commands.runOnce(swerveSubsystem::stop, swerveSubsystem));
     }
 

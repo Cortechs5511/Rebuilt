@@ -17,6 +17,7 @@ public class PivotWheels extends SubsystemBase {
   private final SparkMax pivotWheelsMotor =
       new SparkMax(PIVOT_WHEELS_MOTOR_ID, MotorType.kBrushless);
 
+  @SuppressWarnings("deprecation")
   public PivotWheels() {
     SparkMaxConfig config = new SparkMaxConfig();
     config.idleMode(IdleMode.kBrake);

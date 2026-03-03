@@ -17,6 +17,7 @@ public class Wheel extends SubsystemBase {
   //For blue wheels in intake.
   private final SparkFlex wheelMotor = new SparkFlex(WHEEL_MOTOR_ID, MotorType.kBrushless);
 
+  @SuppressWarnings("deprecation")
   public Wheel() {
     SparkFlexConfig config = new SparkFlexConfig();
     config.idleMode(IdleMode.kBrake);

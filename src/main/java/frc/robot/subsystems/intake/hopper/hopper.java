@@ -16,6 +16,7 @@ public class hopper extends SubsystemBase {
 
   private final SparkFlex hopperMotor = new SparkFlex(HOPPER_MOTOR_ID, MotorType.kBrushless);
 
+  @SuppressWarnings("deprecation")
   public hopper() {
     SparkFlexConfig config = new SparkFlexConfig();
     config.idleMode(IdleMode.kBrake);

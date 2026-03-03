@@ -35,6 +35,23 @@ public class SwerveModule {
         driveEncoder = createEncoder(driveMotor);
     }
 
+    /**
+     * Optimize a target state so the wheel rotates the minimal amount from the current angle.
+     * If the angle difference is greater than 90 degrees, flip the wheel speed and add 180deg to the angle.
+     */
+    private SwerveModuleState optimizeStateForMinimalRotation(SwerveModuleState targetState, Rotation2d currentAngle) {
+        Rotation2d desired = targetState.angle;
+        double delta = MathUtil.angleModulus(desired.getRadians() - currentAngle.getRadians());
+        if (Math.abs(delta) > Math.PI / 2.0) {
+            // Reverse wheel direction and rotate desired angle by pi
+            double flippedSpeed = -targetState.speedMetersPerSecond;
+            Rotation2d newAngle = desired.rotateBy(Rotation2d.fromRadians(Math.PI));
+            return new SwerveModuleState(flippedSpeed, newAngle);
+        }
+        return targetState;
+    }
+
+    @SuppressWarnings("deprecation")
     private SparkMax createMotorController(int port, boolean isInverted, boolean isDriveMotor) {
         SparkMax controller = new SparkMax(port, MotorType.kBrushless);
         SparkMaxConfig config = new SparkMaxConfig();
@@ -71,9 +88,9 @@ public class SwerveModule {
     public void setTargetState(SwerveModuleState targetState, PIDController drivePID, ProfiledPIDController turnPID) {
         // get angle + optimize angle 
         Rotation2d currentAngle = getAngle();
-        // Optimize the desired state relative to the current angle. Use the static optimize helper
-        // so we get the optimized state back.
-        SwerveModuleState optimizedState = SwerveModuleState.optimize(targetState, currentAngle);
+        // Optimize the desired state relative to the current angle. The built-in SwerveModuleState.optimize
+        // is deprecated, so perform an equivalent optimization here to avoid the deprecation warning.
+        SwerveModuleState optimizedState = optimizeStateForMinimalRotation(targetState, currentAngle);
 
         // calculate the motor output + set the motor states
         // Add a normalized feedforward term so requested wheel speed maps directly to motor output.

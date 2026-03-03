@@ -25,7 +25,11 @@ public class intake extends SubsystemBase {
   private static final double PIVOT_KI = 0.0;
   private static final double PIVOT_KD = 0.0;
   private static final double PIVOT_TOLERANCE_ROT = 0.75 / PIVOT_GEAR_RATIO;
-  private static final double STOWED_POSITION_ROT = 0.0;
+  // Minimum (most-retracted / rearward) safe pivot rotation. Tune on robot.
+  // Negative means rotated rearward from the zero reference.
+  private static final double MIN_PIVOT_ROT = -0.50; // ~ -180deg (adjust after testing)
+  private static final double MAX_PIVOT_ROT = 1.50; // safe forward limit (adjust after testing)
+  private static final double STOWED_POSITION_ROT = MIN_PIVOT_ROT;
   private static final double INTAKE_POSITION_ROT = 18.0 / PIVOT_GEAR_RATIO;
 
   private final SparkMax pivotMotor = new SparkMax(PIVOT_MOTOR_ID, MotorType.kBrushless);
@@ -35,6 +39,7 @@ public class intake extends SubsystemBase {
   private boolean positionControlEnabled = true;
   private double targetPositionRot = STOWED_POSITION_ROT;
 
+  @SuppressWarnings("deprecation")
   public intake() {
     SparkMaxConfig config = new SparkMaxConfig();
     config.idleMode(IdleMode.kBrake);
@@ -44,7 +49,10 @@ public class intake extends SubsystemBase {
     config.encoder.positionConversionFactor(1.0 / PIVOT_GEAR_RATIO);
     config.encoder.velocityConversionFactor(1.0 / PIVOT_GEAR_RATIO);
     pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
-    pivotEncoder.setPosition(STOWED_POSITION_ROT);
+    // Clamp initial encoder position to a safe range in case the encoder value
+    // or robot wiring yields an out-of-range value at boot.
+    double initial = MathUtil.clamp(STOWED_POSITION_ROT, MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+    pivotEncoder.setPosition(initial);
     pivotController.setTolerance(PIVOT_TOLERANCE_ROT);
   }
 
@@ -57,6 +65,8 @@ public class intake extends SubsystemBase {
     }
 
     if (!positionControlEnabled) {
+      // When leaving manual control, capture current position as the new
+      // target (clamped) so the PID can hold the arm and prevent falling.
       setTargetPositionRot(getPivotPositionRot());
     }
   }
@@ -70,7 +80,8 @@ public class intake extends SubsystemBase {
   }
 
   public void setTargetPositionRot(double targetRot) {
-    targetPositionRot = targetRot;
+    // keep targets inside the safe travel range
+    targetPositionRot = MathUtil.clamp(targetRot, MIN_PIVOT_ROT, MAX_PIVOT_ROT);
     positionControlEnabled = true;
   }
 

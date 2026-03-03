@@ -18,6 +18,7 @@ import frc.robot.subsystems.intake.AprilTag;
 import frc.robot.subsystems.intake.PivotWheels;
 import frc.robot.subsystems.auto.BlueLeftAuto;
 import frc.robot.subsystems.intake.hopper.hopper;
+import frc.robot.subsystems.shooter.Shooter;
 import frc.robot.subsystems.intake.intake;
 
 
@@ -29,6 +30,7 @@ public class RobotContainer {
   private final SwerveSubsystem m_swerveSubsystem = new SwerveSubsystem();
   private final AprilTag m_aprilTag = new AprilTag();
   private final hopper m_hopper = new hopper();
+  private final Shooter m_shooter = new Shooter();
   private final PivotWheels m_pivotWheels = new PivotWheels();
   private final intake m_intakePivot = new intake();
   private final CommandXboxController m_driverController = new CommandXboxController(0);
@@ -54,7 +56,7 @@ public class RobotContainer {
                     m_operatorController.getLeftTriggerAxis(), m_operatorController.getRightTriggerAxis()),
             m_hopper));
 
-    autoChooser.setDefaultOption("BlueLeftAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag));
+  autoChooser.setDefaultOption("BlueLeftAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter));
 
     configureBindings();
   }
@@ -62,6 +64,11 @@ public class RobotContainer {
   private void configureBindings() {
     // Hold X on driver controller for intake preset:
     // lower intake bar + run pivot wheels + run blue intake wheels.
+    // Allow the operator to always control the intake pivot with the
+    // right joystick Y axis. To make the preset usable but non-blocking,
+    // the preset command will NOT require the intake pivot subsystem.
+    // That way the operator's default command (which reads the joystick)
+    // can run and override the preset while it's active.
     m_driverController
         .x()
         .whileTrue(
@@ -74,56 +81,94 @@ public class RobotContainer {
                 () -> {
                   m_pivotWheels.stop();
                   m_hopper.stop();
+                  m_intakePivot.moveToStowedPosition();
                 },
-                m_intakePivot,
+                /* Intentionally do NOT require m_intakePivot so the operator's
+                   joystick control can always run and override the preset. */
                 m_pivotWheels,
                 m_hopper));
 
     // Press B: reset gyro heading to 0 degrees.
     m_driverController.b().onTrue(Commands.runOnce(() -> m_swerveSubsystem.resetGyro(0.0), m_swerveSubsystem));
 
-    // Hold A on operator controller for explicit intake action.
+    // Hold A on operator controller to run shooter wheels and hopper while held.
     m_operatorController
         .a()
-        .whileTrue(Commands.startEnd(m_hopper::intakeIn, m_hopper::stop, m_hopper));
+        .whileTrue(
+            Commands.startEnd(
+                () -> {
+                  m_shooter.spinAll();
+                  m_hopper.intakeIn();
+                },
+                () -> {
+                  m_shooter.stop();
+                  m_hopper.stop();
+                },
+                m_shooter,
+                m_hopper));
 
-    // Press Y to scan visible AprilTag IDs and run the configured action.
-    // Current configured action: if ID 23 is found, rotate to 45 degrees.
-    m_driverController
-        .y()
-        .onTrue(createScanAndRunTagCommand());
+  // Press Y to scan visible AprilTag IDs and run a context-aware action:
+  // - If tag 23 is seen -> rotate to 45deg and shoot
+  // - If tag 25 or 26 (hub tags) -> run the tag-align-to-hub routine and then shoot
+  m_driverController.y().onTrue(createFlexibleScanAndRunTagCommand());
 
   }
 
-  private Command createScanAndRunTagCommand() {
-    final int targetTagId = 23;
-    final double targetHeadingDeg = 45.0;
+  private Command createFlexibleScanAndRunTagCommand() {
+    final int[] detectedId = {-1};
+    final double shootHeadingDeg = 45.0;
     final double headingKp = 2.4;
     final double maxOmegaRadPerSec = 2.0;
     final double headingToleranceDeg = 2.0;
 
-    return Commands.sequence(
-        Commands.runOnce(() -> m_aprilTag.updateOriginFromAlliance(edu.wpi.first.wpilibj.DriverStation.getAlliance())),
-        Commands.waitUntil(() -> m_aprilTag.getBestVisibleTarget()
-            .map(target -> target.getFiducialId() == targetTagId)
-            .orElse(false)).withTimeout(1.5),
-        Commands.run(
+    // Command to rotate to a fixed heading (used for tag 23)
+    Command rotateToShootHeading = Commands.run(
             () -> {
               double currentHeadingRad = m_swerveSubsystem.getPose().getRotation().getRadians();
-              double targetHeadingRad = Math.toRadians(targetHeadingDeg);
+              double targetHeadingRad = Math.toRadians(shootHeadingDeg);
               double errorRad = MathUtil.angleModulus(targetHeadingRad - currentHeadingRad);
               double omega = MathUtil.clamp(errorRad * headingKp, -maxOmegaRadPerSec, maxOmegaRadPerSec);
               m_swerveSubsystem.driveFieldRelative(new ChassisSpeeds(0.0, 0.0, omega));
             },
             m_swerveSubsystem)
-            .until(() -> {
-              double currentHeadingRad = m_swerveSubsystem.getPose().getRotation().getRadians();
-              double targetHeadingRad = Math.toRadians(targetHeadingDeg);
-              return Math.abs(MathUtil.angleModulus(targetHeadingRad - currentHeadingRad))
-                  <= Math.toRadians(headingToleranceDeg);
-            })
+        .until(() -> {
+          double currentHeadingRad = m_swerveSubsystem.getPose().getRotation().getRadians();
+          double targetHeadingRad = Math.toRadians(shootHeadingDeg);
+          return Math.abs(MathUtil.angleModulus(targetHeadingRad - currentHeadingRad))
+              <= Math.toRadians(headingToleranceDeg);
+        })
+        .withTimeout(1.5)
+        .andThen(Commands.runOnce(m_swerveSubsystem::stop, m_swerveSubsystem));
+
+    // Command sequence to shoot for a short duration
+    Command shootSequence = Commands.sequence(
+        Commands.runOnce(() -> m_shooter.spinAll(0.5), m_shooter),
+        Commands.waitSeconds(2.0),
+        Commands.runOnce(m_shooter::stop, m_shooter));
+
+    // Command to align to hub/tag using the existing auto helper (for tags 25/26)
+    Command alignToHub = BlueLeftAuto.createTagAlignCommand(m_swerveSubsystem, m_aprilTag)
+        .andThen(Commands.runOnce(m_swerveSubsystem::stop, m_swerveSubsystem));
+
+    // Main sequence: detect any visible tag, then branch based on ID
+    return Commands.sequence(
+        Commands.runOnce(() -> {
+          detectedId[0] = -1;
+          m_aprilTag.updateOriginFromAlliance(DriverStation.getAlliance());
+        }),
+        // Poll camera until we see any target or timeout
+        Commands.run(() -> m_aprilTag.getBestVisibleTarget().ifPresent(t -> detectedId[0] = t.getFiducialId()))
+            .until(() -> detectedId[0] != -1)
             .withTimeout(1.5),
-        Commands.runOnce(m_swerveSubsystem::stop, m_swerveSubsystem));
+        // Branch: if tag 23 -> rotate to fixed heading then shoot
+        Commands.either(
+            Commands.sequence(rotateToShootHeading, shootSequence),
+            // Else: if tag 25 or 26 -> align to hub and shoot, otherwise do nothing
+            Commands.either(
+                Commands.sequence(alignToHub, shootSequence),
+                Commands.runOnce(() -> SmartDashboard.putString("Vision/ScanResult", "No actionable tag")),
+                () -> detectedId[0] == 25 || detectedId[0] == 26),
+            () -> detectedId[0] == 23));
   }
 
   /** Returns selected autonomous command or null. */
@@ -133,6 +178,6 @@ public class RobotContainer {
       return selected;
     }
     DriverStation.reportWarning("Auto chooser returned null, falling back to BlueLeftAuto.", false);
-    return BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag);
+    return BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter);
   }
 }
