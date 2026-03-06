@@ -52,13 +52,18 @@ public final class Constants {
   public static final double[] CANCODER_OFFSETS_RAD = {-2.28102, -2.28102, -2.28102, -2.28102};
 
     // PID Values
-    
-    
     public static final double[] DRIVE_PID_VALUES = {0.015, 0.0, 0.0};
-    public static final double[] TURN_PID_VALUES = {0.35, 0.0, 0.0};
+    // D term damps turn-motor oscillation that caused module twitching.
+    public static final double[] TURN_PID_VALUES = {0.35, 0.0, 0.005};
 
     public static final double ANGLE_MAX_VELOCITY = 7.0;
     public static final double ANGLE_MAX_ACCELERATION = 30.0;
+
+    // Angle error (degrees) below which the turn-motor output is zeroed to prevent idle hunting.
+    public static final double TURN_DEADBAND_DEG = 2.0;
+    // Angle error (degrees) above which the drive motor is suppressed so the module first
+    // rotates into position before driving, preventing movement in the wrong direction.
+    public static final double DRIVE_SUPPRESS_ANGLE_DEG = 45.0;
     
 
     // public static final double PID_RANGE = 0.9;

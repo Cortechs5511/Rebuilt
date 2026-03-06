@@ -269,15 +269,13 @@ public class SwerveSubsystem extends SubsystemBase {
     }
     
     /**
-     * Stop driving (zero wheel speeds) but keep current wheel angles.
+     * Stop driving by zeroing all motor outputs directly.
+     * This avoids PID hunting while the robot is at rest.
      */
     public void stop() {
-        SwerveModuleState[] current = getStates();
-        SwerveModuleState[] stopStates = new SwerveModuleState[current.length];
-        for (int i = 0; i < current.length; i++) {
-            stopStates[i] = new SwerveModuleState(0.0, current[i].angle);
+        for (SwerveModule module : modules) {
+            module.stopMotors();
         }
-        setStates(stopStates);
     }
 
     /**
