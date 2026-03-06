@@ -20,7 +20,7 @@ public final class Constants {
     public static final int DRIVER_CONTROLLER_PORT = 0;
     public static final int OPERATOR_CONTROLLER_PORT = 1;
 
-    public static final double DEADBAND = 0.15;
+    public static final double DEADBAND = 0.10;
     public static final double TRANSLATION_EXPO = 2.0;
     public static final double ROTATION_EXPO = 2.0;
     public static final double TELEOP_TRANSLATION_SCALE = 1.0;
