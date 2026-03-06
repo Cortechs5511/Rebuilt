@@ -92,16 +92,24 @@ public class SwerveModule {
         // is deprecated, so perform an equivalent optimization here to avoid the deprecation warning.
         SwerveModuleState optimizedState = optimizeStateForMinimalRotation(targetState, currentAngle);
 
+        double angleErrorRad = MathUtil.angleModulus(optimizedState.angle.getRadians() - currentAngle.getRadians());
+
         // calculate the motor output + set the motor states
         // Add a normalized feedforward term so requested wheel speed maps directly to motor output.
         double driveFeedforward = optimizedState.speedMetersPerSecond / SwerveConstants.MAX_TRANSLATIONAL_SPEED;
         double driveFeedback = drivePID.calculate(getVelocity(), optimizedState.speedMetersPerSecond);
         double driveOutput = driveFeedforward + driveFeedback;
+
+        // Suppress drive output when the module is far from its target angle to avoid driving
+        // in the wrong direction while the wheel is still rotating into position.
+        if (Math.abs(angleErrorRad) > Math.toRadians(SwerveConstants.DRIVE_SUPPRESS_ANGLE_DEG)) {
+            driveOutput = 0.0;
+        }
+
         double turnOutput = turnPID.calculate(getAngle().getRadians(), optimizedState.angle.getRadians());
 
         // Suppress small angle-hunting around setpoint to reduce module twitch.
-        double angleErrorRad = MathUtil.angleModulus(optimizedState.angle.getRadians() - currentAngle.getRadians());
-        if (Math.abs(angleErrorRad) < Math.toRadians(1.5)) {
+        if (Math.abs(angleErrorRad) < Math.toRadians(SwerveConstants.TURN_DEADBAND_DEG)) {
             turnOutput = 0.0;
         }
 
@@ -110,6 +118,12 @@ public class SwerveModule {
         
         turnMotor.set(turnOutput);
         driveMotor.set(driveOutput);
+    }
+
+    /** Zero both motor outputs immediately (no PID). */
+    public void stopMotors() {
+        driveMotor.set(0.0);
+        turnMotor.set(0.0);
     }
 
     // var delta = angle.minus(currentAngle);
