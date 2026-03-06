@@ -18,9 +18,13 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import frc.robot.Constants.SwerveConstants;
 
 public class SwerveModule {
-    private static final double DRIVE_SUPPRESS_ANGLE_DEG = 45.0;
+    // Drive is suppressed only when the module would be actively counterproductive
+    // (pointing more than 90 degrees away from target). After optimizeStateForMinimalRotation
+    // flips direction for errors >90°, the post-optimization error is always ≤90°, so this
+    // threshold effectively only triggers in degenerate/startup edge cases.
+    private static final double DRIVE_SUPPRESS_ANGLE_DEG = 90.0;
     private static final double TURN_DEADBAND_DEG = 2.0;
-    private static final double DRIVE_REQUEST_DEADBAND_MPS = 0.18;
+    private static final double DRIVE_REQUEST_DEADBAND_MPS = 0.05;
 
     private SparkMax driveMotor;
     private SparkMax turnMotor;
@@ -127,8 +131,12 @@ public class SwerveModule {
         }
 
         // Do not drive while module heading is still far from target.
+        // Skip this check when the CANcoder is offline: we can't trust the angle
+        // measurement in that state, so suppressing drive causes an unnecessary
+        // full freeze. Turn output is already zeroed in the !canCoderOnline branch
+        // above (line ~123), so only angle-based drive suppression needs to be gated.
         double absAngleErrorDeg = Math.abs(Math.toDegrees(angleErrorRad));
-        if (absAngleErrorDeg > DRIVE_SUPPRESS_ANGLE_DEG) {
+        if (canCoderOnline && absAngleErrorDeg > DRIVE_SUPPRESS_ANGLE_DEG) {
             driveOutput = 0.0;
         }
         turnOutput = MathUtil.clamp(turnOutput, -1.0, 1.0);
@@ -157,9 +165,10 @@ public class SwerveModule {
             return hasValidAngle ? lastValidAngle.getRadians() : 0.0;
         }
         double angleRad = (absoluteRotations * SwerveConstants.TWO_PI) - absoluteOffsetRad;
-        lastValidAngle = Rotation2d.fromRadians(MathUtil.angleModulus(angleRad));
+        double normalizedRad = MathUtil.angleModulus(angleRad);
+        lastValidAngle = Rotation2d.fromRadians(normalizedRad);
         hasValidAngle = true;
-        return angleRad;
+        return normalizedRad;
     }
 
     public double getAbsoluteEncoderDegrees() {
