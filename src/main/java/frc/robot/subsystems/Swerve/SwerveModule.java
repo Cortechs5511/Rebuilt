@@ -1,6 +1,9 @@
 package frc.robot.subsystems.Swerve;
 
+import com.ctre.phoenix6.configs.CANcoderConfiguration;
+import com.ctre.phoenix6.configs.MagnetSensorConfigs;
 import com.ctre.phoenix6.hardware.core.CoreCANcoder;
+import com.ctre.phoenix6.signals.SensorDirectionValue;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.SparkMax;
@@ -20,7 +23,7 @@ import frc.robot.Constants.SwerveConstants;
 public class SwerveModule {
     private static final double DRIVE_SUPPRESS_ANGLE_DEG = 45.0;
     private static final double TURN_DEADBAND_DEG = 2.0;
-    private static final double DRIVE_REQUEST_DEADBAND_MPS = 0.18;
+    private static final double DRIVE_REQUEST_DEADBAND_MPS = 0.02;
 
     private SparkMax driveMotor;
     private SparkMax turnMotor;
@@ -39,10 +42,19 @@ public class SwerveModule {
         driveMotor = createMotorController(driveMotorPort, driveInverted, true);
         turnMotor = createMotorController(turningMotorPort, turnInverted, false);
         absoluteEncoder = new CoreCANcoder(absoluteEncoderPort);
+        configureAbsoluteEncoder();
         absoluteEncoderId = absoluteEncoderPort;
         absoluteOffsetRad = angleOffsetRad;
 
         driveEncoder = createEncoder(driveMotor);
+    }
+
+    private void configureAbsoluteEncoder() {
+        CANcoderConfiguration config = new CANcoderConfiguration();
+        config.MagnetSensor = new MagnetSensorConfigs()
+                .withAbsoluteSensorDiscontinuityPoint(1.0)
+                .withSensorDirection(SensorDirectionValue.CounterClockwise_Positive);
+        absoluteEncoder.getConfigurator().apply(config);
     }
 
     /**
