@@ -95,18 +95,12 @@ public class SwerveModule {
             config.encoder.velocityConversionFactor(SwerveConstants.VELOCITY_CONVERSION_FACTOR);
             config.encoder.positionConversionFactor(SwerveConstants.POSITION_CONVERSION_FACTOR);
         }
-        // for some reason causes robot to shake:
-        //     controller.burnFlash(); 
         controller.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
         return controller;
     }
 
     private RelativeEncoder createEncoder(SparkMax controller) {
-        RelativeEncoder encoder = controller.getEncoder();
-        // convert from native unit of rpm to m/s
-        //encoder.setVelocityConversionFactor(SwerveConstants.VELOCITY_CONVERSION_FACTOR);
-
-        return encoder;
+        return controller.getEncoder();
     }
 
     public void setTargetState(SwerveModuleState targetState, PIDController drivePID, ProfiledPIDController turnPID) {
@@ -153,12 +147,6 @@ public class SwerveModule {
         turnMotor.set(turnOutput);
         driveMotor.set(driveOutput);
     }
-
-    // var delta = angle.minus(currentAngle);
-    // if (Math.abs(delta.getDegrees()) > 90.0) {
-    //   speedMetersPerSecond *= -1;
-    //   angle = angle.rotateBy(Rotation2d.kPi);
-    // }
 
     public double getVelocity() {
         return driveEncoder.getVelocity();
