@@ -59,7 +59,7 @@ public final class Constants {
 
     // PID Values
     //
-    // ── How to calibrate swerve PID values ──────────────────────────────────────
+    // -- How to calibrate swerve PID values --------------------------------------
     // DRIVE PID  (controls wheel speed in m/s)
     //   1. Set I and D to 0. Start with P around 0.01.
     //   2. Slowly raise P until the wheel tracks commanded speed without oscillating.
@@ -67,13 +67,13 @@ public final class Constants {
     //   3. If steady-state speed error remains at a constant setpoint, add a small I
     //      (e.g. 0.001) and raise until the error is corrected within ~0.5 s.
     //   4. If overshoot or oscillation appears after adding I, add D (e.g. 0.001) to
-    //      dampen. Keep D small – too large will amplify sensor noise.
+    //      dampen. Keep D small - too large will amplify sensor noise.
     //   5. The normalised feedforward term (speed / MAX_TRANSLATIONAL_SPEED) already
     //      handles the bulk of the motor output, so P values are intentionally small.
     //
     // TURN PID  (ProfiledPIDController, controls wheel angle in radians)
     //   1. Set I and D to 0. Set ANGLE_MAX_VELOCITY and ANGLE_MAX_ACCELERATION to
-    //      conservative values (e.g. 4 rad/s, 8 rad/s²).
+    //      conservative values (e.g. 4 rad/s, 8 rad/s^2).
     //   2. Raise P until the wheel snaps to its target angle quickly without hunting.
     //      Symptom of too-high P: module oscillates / buzzes around the target angle.
     //   3. Add D (e.g. 0.005) to damp oscillation while keeping response crisp.
@@ -81,8 +81,8 @@ public final class Constants {
     //   4. Once P and D are stable, increase ANGLE_MAX_VELOCITY / ANGLE_MAX_ACCELERATION
     //      to allow faster turns; re-check for oscillation after each increase.
     //   5. Use the TURN_DEADBAND_DEG constant to silence small residual twitching
-    //      without affecting real tracking; keep it ≤ 3° or module accuracy suffers.
-    // ────────────────────────────────────────────────────────────────────────────
+    //      without affecting real tracking; keep it <= 3 deg or module accuracy suffers.
+    // ----------------------------------------------------------------------------
     public static final double[] DRIVE_PID_VALUES = {0.015, 0.0, 0.0};
     public static final double[] TURN_PID_VALUES = {0.35, 0.0, 0.005};
 
@@ -107,7 +107,7 @@ public final class Constants {
     
     // Deadband constants
     //
-    // There are three separate deadband layers in the swerve stack – each serves a
+    // There are three separate deadband layers in the swerve stack - each serves a
     // distinct purpose and they do NOT compound one another's effect:
     //
     //  1. OIConstants.DEADBAND (0.15, normalised)
