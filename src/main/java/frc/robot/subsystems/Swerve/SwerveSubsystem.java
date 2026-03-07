@@ -142,8 +142,8 @@ public class SwerveSubsystem extends SubsystemBase {
     public void driveRobotRelative(ChassisSpeeds robotRelativeSpeeds) {
         lastRequestedRobotRelativeSpeeds = robotRelativeSpeeds;
 
-        final double linearDeadbandMps = 0.02;
-        final double angularDeadbandRadPerSec = 0.02;
+        final double linearDeadbandMps = SwerveConstants.CHASSIS_LINEAR_DEADBAND_MPS;
+        final double angularDeadbandRadPerSec = SwerveConstants.CHASSIS_ANGULAR_DEADBAND_RAD_PER_SEC;
 
         // When no chassis motion is requested, hold module angles to prevent idle hunting.
         if (Math.abs(robotRelativeSpeeds.vxMetersPerSecond) < linearDeadbandMps
