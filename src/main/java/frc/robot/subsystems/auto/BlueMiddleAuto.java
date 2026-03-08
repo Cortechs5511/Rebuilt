@@ -19,7 +19,11 @@ import frc.robot.subsystems.shooter.Shooter;
  */
 public class BlueMiddleAuto {
 	private static final double BACKUP_METERS = 1.524; // 5 feet
-	private static final double DRIVE_SPEED_MPS = 0.6; // forward speed magnitude (we'll use negative vx to go backward)
+	// Nominal and slow approach speeds for backing up. We slow down when
+	// we're within APPROACH_SLOW_DISTANCE to improve control/precision.
+	private static final double DRIVE_SPEED_MPS = 0.45;
+	private static final double SLOW_SPEED_MPS = 0.20;
+	private static final double APPROACH_SLOW_DISTANCE = 0.5; // meters
 
 	private BlueMiddleAuto() {}
 
@@ -35,8 +39,15 @@ public class BlueMiddleAuto {
 		Command driveBack = Commands.sequence(
 				Commands.runOnce(() -> startPose[0] = swerveSubsystem.getPose(), swerveSubsystem),
 				Commands.run(() -> {
-					// Drive robot-relative backward by setting negative vx
-					swerveSubsystem.driveRobotRelative(new ChassisSpeeds(-DRIVE_SPEED_MPS, 0.0, 0.0));
+					// Drive robot-relative backward. Slow down as we near the target
+					// distance to give the driver/auto more control when stopping.
+					Pose2d current = swerveSubsystem.getPose();
+					double dx = current.getTranslation().getX() - startPose[0].getTranslation().getX();
+					double dy = current.getTranslation().getY() - startPose[0].getTranslation().getY();
+					double distance = Math.hypot(dx, dy);
+					double remaining = Math.max(0.0, BACKUP_METERS - distance);
+					double speed = (remaining <= APPROACH_SLOW_DISTANCE) ? SLOW_SPEED_MPS : DRIVE_SPEED_MPS;
+					swerveSubsystem.driveRobotRelative(new ChassisSpeeds(-speed, 0.0, 0.0));
 				}, swerveSubsystem)
 						.until(() -> {
 							Pose2d current = swerveSubsystem.getPose();

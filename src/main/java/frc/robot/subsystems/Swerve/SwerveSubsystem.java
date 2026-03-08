@@ -9,13 +9,16 @@ import java.io.File;
 import java.io.IOException;
 
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
+import edu.wpi.first.wpilibj.Preferences;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.SwerveConstants;
@@ -27,7 +30,13 @@ import swervelib.telemetry.SwerveDriveTelemetry.TelemetryVerbosity;
 public class SwerveSubsystem extends SubsystemBase {
     private final SwerveDrive swerveDrive;
     private Rotation2d gyroOffset = new Rotation2d();
+    // Hardware gyro wrapper used for raw IMU telemetry and zeroing
+    private final Gyro hardwareGyro = new Gyro();
     private ChassisSpeeds lastRequestedRobotRelativeSpeeds = new ChassisSpeeds();
+    // Heading-hold PID (simple P controller used for teleop heading hold)
+    private final PIDController headingPid = new PIDController(2.4, 0.0, 0.0);
+    private boolean holdHeading = false;
+    private double holdHeadingRad = 0.0;
 
     public SwerveSubsystem() {
         SwerveDriveTelemetry.verbosity = TelemetryVerbosity.LOW;
@@ -38,7 +47,21 @@ public class SwerveSubsystem extends SubsystemBase {
             throw new RuntimeException("Failed to load YAGSL swerve JSON config from " + swerveJsonDirectory, e);
         }
 
+        // Apply a configurable startup gyro reset so the robot's "front" can be
+        // aligned without code changes. Set the value via Preferences key
+        // "Swerve/initialHeadingDegrees" (default 0.0). This will call resetGyro
+        // and also reset odometry to the specified heading on boot.
         gyroOffset = new Rotation2d();
+        double initialHeadingDeg = Preferences.getDouble("Swerve/initialHeadingDegrees", 0.0);
+        if (Math.abs(initialHeadingDeg) > 0.000001) {
+            // Apply initial heading (will set swerveDrive gyro + reset odometry)
+            resetGyro(initialHeadingDeg);
+        } else {
+            // Ensure underlying IMU yaw is zeroed on boot. This explicitly
+            // writes the Pigeon yaw register so transient device state from
+            // prior runs doesn't produce an unexpected heading.
+            hardwareGyro.setYaw(0.0);
+        }
         RobotConfig config;
         try {
         config = RobotConfig.fromGUISettings();
@@ -48,9 +71,13 @@ public class SwerveSubsystem extends SubsystemBase {
                 this::getPose, // Robot pose supplier
                 this::resetPose, // Method to reset odometry (will be called if your auto has a starting pose)
                 this::getSpeeds, // ChassisSpeeds supplier. MUST BE ROBOT RELATIVE
-                // PathPlanner provides robot-relative speeds in SI units.
-                // Send them directly to avoid applying speed scaling a second time.
-                (speeds, feedforwards) -> driveRobotRelative(speeds),
+                (speeds, feedforwards) -> drive(
+                        speeds.vxMetersPerSecond,
+                        speeds.vyMetersPerSecond,
+                        speeds.omegaRadiansPerSecond,
+                        false,
+                        false,
+                        false),
                 // Method that will drive the robot given ROBOT RELATIVE ChassisSpeeds. Also optionally outputs individual module feedforwards
                 new PPHolonomicDriveController( // PPHolonomicController is the built in path following controller for holonomic drive trains
                         new PIDConstants(SwerveConstants.DRIVE_PID_VALUES[0], SwerveConstants.DRIVE_PID_VALUES[1], SwerveConstants.DRIVE_PID_VALUES[2]), // Translation PID constants
@@ -83,23 +110,62 @@ public class SwerveSubsystem extends SubsystemBase {
             gyroOffset = new Rotation2d();
         }
 
+        /**
+         * Enable heading hold: the subsystem will PID-control robot rotation to maintain the
+         * requested absolute heading (radians, field-relative) while still accepting translation
+         * commands. Call {@link #clearHoldHeading()} to disable.
+         */
+        public void holdHeading(double headingRad) {
+            holdHeading = true;
+            holdHeadingRad = headingRad;
+            headingPid.reset();
+        }
+
+        /** Disable heading hold. */
+        public void clearHoldHeading() {
+            holdHeading = false;
+        }
+
     @Override 
     public void periodic () {
         logStates(); 
+        // If heading hold is active, compute rotation command from PID and apply
+        if (holdHeading) {
+            double currentHeading = swerveDrive.getOdometryHeading().getRadians();
+            double error = MathUtil.angleModulus(holdHeadingRad - currentHeading);
+            double omega = headingPid.calculate(error, 0.0);
+            // Clamp to maximum rotational speed
+            omega = MathUtil.clamp(omega, -SwerveConstants.MAX_ROTATIONAL_SPEED, SwerveConstants.MAX_ROTATIONAL_SPEED);
+            // Apply omega while preserving last requested translation speeds
+            ChassisSpeeds target = new ChassisSpeeds(lastRequestedRobotRelativeSpeeds.vxMetersPerSecond,
+                    lastRequestedRobotRelativeSpeeds.vyMetersPerSecond, omega);
+            swerveDrive.setChassisSpeeds(target);
+        }
     }
 
 
     public void drive(double y, double x, double theta, boolean fieldRelative, boolean alignLimelight, boolean resetGyro) {
         ChassisSpeeds newDesiredSpeeds; 
         
-        if (alignLimelight) { 
-            newDesiredSpeeds = new ChassisSpeeds(y, x, theta);
-        } else { 
+        // Centralized rotation handling: apply deadband, scaling, and optionally
+        // reduce rotation while translating to avoid propulsion.
+        double rotInput = MathUtil.applyDeadband(theta, frc.robot.Constants.OIConstants.DEADBAND);
+        rotInput *= frc.robot.Constants.OIConstants.TELEOP_ROTATION_SCALE;
+
+        // If there's significant translational demand, reduce rotation to avoid sudden lateral propulsion.
+        double translationMag = Math.hypot(y, x);
+        if (translationMag > 0.2) {
+            rotInput *= 0.6; // reduce rotation when translating (tunable)
+        }
+
+        if (alignLimelight) {
+            newDesiredSpeeds = new ChassisSpeeds(y, x, rotInput);
+        } else {
             newDesiredSpeeds = new ChassisSpeeds(
-            SwerveConstants.MAX_TRANSLATIONAL_SPEED * y, 
-            SwerveConstants.MAX_TRANSLATIONAL_SPEED * x,
-            SwerveConstants.MAX_ROTATIONAL_SPEED * theta
-        );
+                SwerveConstants.MAX_TRANSLATIONAL_SPEED * y,
+                SwerveConstants.MAX_TRANSLATIONAL_SPEED * x,
+                SwerveConstants.MAX_ROTATIONAL_SPEED * rotInput
+            );
         }
 
         // reset gyro button
@@ -142,17 +208,6 @@ public class SwerveSubsystem extends SubsystemBase {
     public void driveRobotRelative(ChassisSpeeds robotRelativeSpeeds) {
         lastRequestedRobotRelativeSpeeds = robotRelativeSpeeds;
 
-        final double linearDeadbandMps = 0.02;
-        final double angularDeadbandRadPerSec = 0.02;
-
-        // When no chassis motion is requested, hold module angles to prevent idle hunting.
-        if (Math.abs(robotRelativeSpeeds.vxMetersPerSecond) < linearDeadbandMps
-                && Math.abs(robotRelativeSpeeds.vyMetersPerSecond) < linearDeadbandMps
-                && Math.abs(robotRelativeSpeeds.omegaRadiansPerSecond) < angularDeadbandRadPerSec) {
-            stop();
-            return;
-        }
-
         ChassisSpeeds targetSpeeds = ChassisSpeeds.discretize(robotRelativeSpeeds, 0.02);
 
         swerveDrive.setChassisSpeeds(targetSpeeds);
@@ -183,6 +238,39 @@ public class SwerveSubsystem extends SubsystemBase {
         SmartDashboard.putBoolean("Swerve/Diag/RequestedMotion", requestedMotion);
         SmartDashboard.putBoolean("Swerve/Diag/CommandReachingModules", commandReachingModules);
         SmartDashboard.putNumber("Swerve/Diag/MaxDriveCmdAbs", maxAbsDriveCommand);
+
+        // Additional telemetry to help debug orientation/propulsion issues
+        double headingDeg = Math.toDegrees(swerveDrive.getOdometryHeading().getRadians());
+        SmartDashboard.putNumber("Swerve/Diag/OdometryHeadingDeg", headingDeg);
+
+    // Publish requested chassis speeds vs actual robot velocity for debugging
+    SmartDashboard.putNumber("Swerve/Diag/RequestedVx", lastRequestedRobotRelativeSpeeds.vxMetersPerSecond);
+    SmartDashboard.putNumber("Swerve/Diag/RequestedVy", lastRequestedRobotRelativeSpeeds.vyMetersPerSecond);
+    SmartDashboard.putNumber("Swerve/Diag/RequestedOmegaRadS", lastRequestedRobotRelativeSpeeds.omegaRadiansPerSecond);
+    var robotVel = swerveDrive.getRobotVelocity();
+    SmartDashboard.putNumber("Swerve/Diag/RobotVx", robotVel.vxMetersPerSecond);
+    SmartDashboard.putNumber("Swerve/Diag/RobotVy", robotVel.vyMetersPerSecond);
+    SmartDashboard.putNumber("Swerve/Diag/RobotOmegaRadS", robotVel.omegaRadiansPerSecond);
+
+        // Publish individual module angles (degrees) for quick verification
+        for (int i = 0; i < currentStates.length; ++i) {
+            double moduleAngleDeg = Math.toDegrees(currentStates[i].angle.getRadians());
+            SmartDashboard.putNumber(String.format("Swerve/Diag/Module%dAngleDeg", i), moduleAngleDeg);
+        }
+
+        // Publish raw IMU axes so we can verify mount pose and behavior during rotation.
+        double imuYaw = hardwareGyro.getYawDegrees();
+        double imuPitch = hardwareGyro.getPitchDegrees();
+        double imuRoll = hardwareGyro.getRollDegrees();
+        SmartDashboard.putNumber("IMU/RawYawDeg", imuYaw);
+        SmartDashboard.putNumber("IMU/RawPitchDeg", imuPitch);
+        SmartDashboard.putNumber("IMU/RawRollDeg", imuRoll);
+
+        // When rotating on the Z axis, pitch and roll should remain near zero.
+        double pitchRollThresholdDeg = 5.0; // warn if tilt exceeds 5 degrees
+        boolean pitchRollOK = Math.abs(imuPitch) < pitchRollThresholdDeg && Math.abs(imuRoll) < pitchRollThresholdDeg;
+        SmartDashboard.putBoolean("IMU/PitchRollOK", pitchRollOK);
+        SmartDashboard.putBoolean("IMU/PitchOrRollExceeded", !pitchRollOK);
     }
     
     /**

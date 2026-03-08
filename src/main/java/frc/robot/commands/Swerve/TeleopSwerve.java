@@ -38,27 +38,34 @@ public class TeleopSwerve extends Command {
 
   @Override
   public void execute() {
-    double forward = -MathUtil.applyDeadband(controller.getLeftY(), OIConstants.DEADBAND);
-    double strafe = -MathUtil.applyDeadband(controller.getLeftX(), OIConstants.DEADBAND);
-    double rotation = -MathUtil.applyDeadband(controller.getRightX(), OIConstants.DEADBAND);
-    forward = Math.copySign(Math.pow(Math.abs(forward), OIConstants.TRANSLATION_EXPO), forward);
-    strafe = Math.copySign(Math.pow(Math.abs(strafe), OIConstants.TRANSLATION_EXPO), strafe);
-    rotation = Math.copySign(Math.pow(Math.abs(rotation), OIConstants.ROTATION_EXPO), rotation);
-    forward *= OIConstants.TELEOP_TRANSLATION_SCALE;
-    strafe *= OIConstants.TELEOP_TRANSLATION_SCALE;
-    rotation *= OIConstants.TELEOP_ROTATION_SCALE;
+  // Raw inputs (apply deadband to avoid joystick noise)
+  double rawForward = -MathUtil.applyDeadband(controller.getLeftY(), OIConstants.DEADBAND);
+  double rawStrafe = -MathUtil.applyDeadband(controller.getLeftX(), OIConstants.DEADBAND);
+  double rawRotation = -MathUtil.applyDeadband(controller.getRightX(), OIConstants.DEADBAND);
 
-    forward = forwardLimiter.calculate(forward);
-    strafe = strafeLimiter.calculate(strafe);
-    rotation = rotationLimiter.calculate(rotation);
+  // Apply exponential response (gives finer control near zero) and scaling
+  double expForward = Math.copySign(Math.pow(Math.abs(rawForward), OIConstants.TRANSLATION_EXPO), rawForward)
+    * OIConstants.TELEOP_TRANSLATION_SCALE;
+  double expStrafe = Math.copySign(Math.pow(Math.abs(rawStrafe), OIConstants.TRANSLATION_EXPO), rawStrafe)
+    * OIConstants.TELEOP_TRANSLATION_SCALE * OIConstants.TELEOP_STRAFE_SCALE;
+  // Send raw rotation input to the subsystem; rotation scaling and
+  // translation-dependent reduction are handled centrally in SwerveSubsystem.
+  double expRotation = rawRotation;
 
-    SmartDashboard.putNumber("Swerve/Diag/DriverForwardCmd", forward);
-    SmartDashboard.putNumber("Swerve/Diag/DriverStrafeCmd", strafe);
-    SmartDashboard.putNumber("Swerve/Diag/DriverRotateCmd", rotation);
+  // Slew-rate limit the processed commands to prevent sudden jumps/propulsion
+  double forward = forwardLimiter.calculate(expForward);
+  double strafe = strafeLimiter.calculate(expStrafe);
+  double rotation = rotationLimiter.calculate(expRotation);
+  SmartDashboard.putNumber("Swerve/Diag/DriverRawForward", rawForward);
+  SmartDashboard.putNumber("Swerve/Diag/DriverRawStrafe", rawStrafe);
+  SmartDashboard.putNumber("Swerve/Diag/DriverRawRotate", rawRotation);
+  SmartDashboard.putNumber("Swerve/Diag/DriverForwardCmd", forward);
+  SmartDashboard.putNumber("Swerve/Diag/DriverStrafeCmd", strafe);
+  SmartDashboard.putNumber("Swerve/Diag/DriverRotateCmd", rotation);
     SmartDashboard.putBoolean(
         "Swerve/Diag/DriverInputActive",
         Math.abs(forward) > 0.05 || Math.abs(strafe) > 0.05 || Math.abs(rotation) > 0.05);
 
-    swerve.drive(forward, strafe, rotation, true, false, false);
+  swerve.drive(forward, strafe, rotation, true, false, false);
   }
 }

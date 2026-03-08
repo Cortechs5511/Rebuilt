@@ -62,6 +62,22 @@ public class RobotContainer {
                     m_operatorController.getLeftTriggerAxis(), m_operatorController.getRightTriggerAxis()),
             m_hopper));
 
+  // Additionally, allow the operator to hold the physical trigger buttons
+  // to run full-speed intake (right) or de-intake (left). These whileTrue
+  // bindings make the behavior unambiguous when the operator wants a
+  // full feed/reverse without having to modulate the analog axis.
+  m_operatorController
+    .rightTrigger()
+    .whileTrue(
+      Commands.startEnd(
+        () -> m_hopper.intakeIn(), () -> m_hopper.stop(), m_hopper));
+
+  m_operatorController
+    .leftTrigger()
+    .whileTrue(
+      Commands.startEnd(
+        () -> m_hopper.intakeOut(), () -> m_hopper.stop(), m_hopper));
+
   // Driver controls pivot wheels & blue wheels with triggers (right = intake in, left = reverse)
   m_pivotWheels.setDefaultCommand(
     Commands.run(
@@ -74,10 +90,25 @@ public class RobotContainer {
       m_pivotWheels,
       m_wheel));
 
-  autoChooser.setDefaultOption("BlueLeftAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper));
+  // Add an alliance-aware middle-auto option so the correct variant runs
+  // automatically based on the Driver Station alliance selection. This
+  // prevents needing to manually pick "Blue 2" vs "Red 2" in DS.
+  autoChooser.setDefaultOption(
+      "MiddleAuto (auto-alliance)",
+      Commands.defer(
+          () -> {
+            var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance();
+            if (alliance.isPresent() && alliance.get() == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue) {
+              return BlueMiddleAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper);
+            }
+            return RedMiddleAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper);
+          },
+          java.util.Set.of(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper)));
+
   // Provide other (placeholder/fallback) options so the driver station chooser
   // has multiple selections. These currently reuse BlueLeftAuto implementation
   // as a safe fallback until specific auto implementations are added.
+  autoChooser.addOption("BlueLeftAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper));
   autoChooser.addOption("BlueMiddleAuto", BlueMiddleAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper));
   autoChooser.addOption("BlueRightAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper));
   autoChooser.addOption("RedLeftAuto", RedLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper));
@@ -87,14 +118,14 @@ public class RobotContainer {
   }
 
   private void configureBindings() {
-    // Hold X on driver controller for intake preset:
+    // Hold X on operator controller for intake preset:
     // lower intake bar + run pivot wheels + run blue intake wheels.
-    // Allow the operator to always control the intake pivot with the
-    // right joystick Y axis. To make the preset usable but non-blocking,
+    // The operator already controls the intake pivot with the right
+    // joystick Y axis. To make the preset usable but non-blocking,
     // the preset command will NOT require the intake pivot subsystem.
-    // That way the operator's default command (which reads the joystick)
-    // can run and override the preset while it's active.
-    m_driverController
+    // That way the operator's default joystick control can always run
+    // and override the preset while it's active.
+    m_operatorController
         .x()
         .whileTrue(
             Commands.startEnd(
@@ -102,11 +133,13 @@ public class RobotContainer {
                   m_intakePivot.moveToIntakePosition();
                   m_pivotWheels.intakeIn();
                   m_hopper.intakeIn();
+                  SmartDashboard.putBoolean("Operator/X_PresetActive", true);
                 },
                 () -> {
                   m_pivotWheels.stop();
                   m_hopper.stop();
                   m_intakePivot.moveToStowedPosition();
+                  SmartDashboard.putBoolean("Operator/X_PresetActive", false);
                 },
                 /* Intentionally do NOT require m_intakePivot so the operator's
                    joystick control can always run and override the preset. */
@@ -116,21 +149,36 @@ public class RobotContainer {
     // Press B: reset gyro heading to 0 degrees.
     m_driverController.b().onTrue(Commands.runOnce(() -> m_swerveSubsystem.resetGyro(0.0), m_swerveSubsystem));
 
-    // Hold A on operator controller to run shooter wheels and hopper while held.
+    // Hold A on operator controller to run shooter wheels and (after a short delay)
+    // start the hopper feed. Implementation details:
+    // - Immediately spin the shooter motors so they can spin up.
+    // - After 0.5s, start the hopper motors and keep both running while the
+    //   button is held.
+    // - When the button is released (interrupt), both subsystems are stopped.
     m_operatorController
         .a()
         .whileTrue(
-            Commands.startEnd(
-                () -> {
-                  m_shooter.spinAll();
-                  m_hopper.intakeIn();
-                },
-                () -> {
-                  m_shooter.stop();
-                  m_hopper.stop();
-                },
-                m_shooter,
-                m_hopper));
+            // Sequence to set the dashboard flag, run shooter continuously,
+            // then start hopper after 0.5s. Each running child is implemented
+            // with runEnd so we can reliably stop the motors when this
+            // composite command is interrupted (button released).
+            Commands.sequence(
+                // indicate the preset is active
+                Commands.runOnce(() -> SmartDashboard.putBoolean("Operator/A_PresetActive", true)),
+                // Parallel group: shooter runs immediately; hopper starts after 0.5s
+                Commands.parallel(
+                    // Shooter: run until interrupted, then stop and clear the dashboard flag
+                    Commands.runEnd(
+                        () -> m_shooter.spinAll(),
+                        () -> {
+                          m_shooter.stop();
+                          SmartDashboard.putBoolean("Operator/A_PresetActive", false);
+                        },
+                        m_shooter),
+                    // Hopper: wait 0.5s, then run until interrupted
+                    Commands.sequence(
+                        Commands.waitSeconds(0.5),
+                        Commands.runEnd(() -> m_hopper.intakeIn(), () -> m_hopper.stop(), m_hopper)))));
 
   // Press Y to scan visible AprilTag IDs and run a context-aware action:
   // - If tag 23 is seen -> rotate to 45deg and shoot

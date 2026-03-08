@@ -19,6 +19,7 @@ public class Gyro {
 
     public Gyro() {
         pigeon = new Pigeon2(0);
+        
         // Load runtime-configurable initial offset (default 0.0). This avoids
         // surprising 45° jumps from a hard-coded constant.
         initialOffsetDegrees = Preferences.getDouble("Gyro/initialOffsetDegrees", 0.0);
@@ -33,5 +34,30 @@ public class Gyro {
     public void resetGyro(double degrees) {
         // Compensate for read-time offset so callers can set true heading directly.
         pigeon.setYaw(degrees - initialOffsetDegrees);
+    }
+
+    /**
+     * Explicitly set the underlying Pigeon yaw value. This writes the device
+     * yaw register directly (degrees) and applies the configured initial offset
+     * so callers can set the logical heading.
+     */
+    public void setYaw(double degrees) {
+        pigeon.setYaw(degrees - initialOffsetDegrees);
+    }
+
+    /**
+     * Raw IMU accessors (degrees). These return the Pigeon reported axes.
+     * Note: callers should consider mount pose; this wrapper does not remap axes.
+     */
+    public double getYawDegrees() {
+        return pigeon.getYaw().getValueAsDouble() + initialOffsetDegrees;
+    }
+
+    public double getPitchDegrees() {
+        return pigeon.getPitch().getValueAsDouble();
+    }
+
+    public double getRollDegrees() {
+        return pigeon.getRoll().getValueAsDouble();
     }
 }

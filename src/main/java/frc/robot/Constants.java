@@ -23,10 +23,16 @@ public final class Constants {
     public static final double DEADBAND = 0.15;
     public static final double TRANSLATION_EXPO = 2.0;
     public static final double ROTATION_EXPO = 2.0;
-    public static final double TELEOP_TRANSLATION_SCALE = 1.0;
+  // Increase this temporarily to test higher translation responsiveness on the robot.
+  // 1.0 is nominal; bump up to make the robot respond faster to the same joystick deflection.
+  public static final double TELEOP_TRANSLATION_SCALE = 1.4;
+  // Strafe sensitivity scale. Restoring to 1.0 to revert prior reduction so
+  // strafing matches forward/back responsiveness as before.
+  public static final double TELEOP_STRAFE_SCALE = 1.0;
     public static final double TELEOP_ROTATION_SCALE = 1.0;
     public static final double TRANSLATION_SLEW_RATE = 6.0;
-    public static final double ROTATION_SLEW_RATE = 8.0;
+  // Reduce rotation responsiveness to avoid propulsion from small stick inputs.
+  public static final double ROTATION_SLEW_RATE = 4.0;
   }
 
   public static class SwerveConstants {
@@ -53,18 +59,21 @@ public final class Constants {
   // Keep module/electrical order aligned with IDS array above: FL, FR, BL, BR.
   public static final boolean[] DRIVE_MOTOR_INVERTED = {false, false, false, false};
   public static final boolean[] TURN_MOTOR_INVERTED = {false, false, false, false};
-  // CANcoder mechanical zero offsets in radians (module order: FL, FR, BL, BR).
-  // Values derived from current on-robot readings so current module pose is treated as zero.
-  public static final double[] CANCODER_OFFSETS_RAD = {1.47262, 1.56773, -1.56926, -2.66299};
+  // CANcoder mechanical zero offsets were historically stored here, but this
+  // project now uses YAGSL deploy JSONs (src/main/deploy/swerve/modules/*.json)
+  // as the single source of truth for per-module absolute encoder offsets.
+  // The old CANCODER_OFFSETS_RAD array was removed to avoid conflicting
+  // calibration sources. If you need to keep offsets in-code, re-add them
+  // here or synchronize them from the deploy JSONs at build time.
 
     // PID Values
     
     
-    public static final double[] DRIVE_PID_VALUES = {0.015, 0.0, 0.0};
-    public static final double[] TURN_PID_VALUES = {0.35, 0.0, 0.005};
+    public static final double[] DRIVE_PID_VALUES = {0.7, 0.0, 0.0};
+    public static final double[] TURN_PID_VALUES = {0.73, 0.0, 0.0};
 
-    public static final double ANGLE_MAX_VELOCITY = 4.0;
-    public static final double ANGLE_MAX_ACCELERATION = 12.0;
+    public static final double ANGLE_MAX_VELOCITY = 7.0;
+    public static final double ANGLE_MAX_ACCELERATION = 30.0;
     
 
     // public static final double PID_RANGE = 0.9;

@@ -62,7 +62,9 @@ import org.photonvision.targeting.PhotonTrackedTarget;
  *   - All pose estimates are sanity-checked against field boundary + ambiguity
  */
 public class AprilTag extends SubsystemBase {
-    private static final boolean PUBLISH_VISION_TELEMETRY = false;
+    // Enable diagnostic telemetry for PhotonVision/camera connection. Turn on
+    // while debugging camera visibility on Shuffleboard/SmartDashboard.
+    private static final boolean PUBLISH_VISION_TELEMETRY = true;
     private static final int VISION_POLL_DIVISOR = 5; // 100 ms at 20 ms robot loop
     private static final long VISION_RETRY_DELAY_MS = 1000;
 
