@@ -11,12 +11,15 @@ import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Filesystem;
+import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import java.io.File;
@@ -29,6 +32,9 @@ import java.util.Optional;
 import org.photonvision.EstimatedRobotPose;
 import org.photonvision.PhotonCamera;
 import org.photonvision.PhotonPoseEstimator;
+import org.photonvision.simulation.PhotonCameraSim;
+import org.photonvision.simulation.SimCameraProperties;
+import org.photonvision.simulation.VisionSystemSim;
 import org.photonvision.targeting.PhotonPipelineResult;
 import org.photonvision.targeting.PhotonTrackedTarget;
 
@@ -111,10 +117,6 @@ public class AprilTag extends SubsystemBase {
     // Reject estimates where any used tag is farther than this.
     private static final double MAX_TAG_DISTANCE_METERS = 5.0;
 
-    // 2026 field boundary (meters). Estimates outside this box are discarded.
-    private static final double FIELD_LENGTH_METERS = 17.548;
-    private static final double FIELD_WIDTH_METERS  = 8.210;
-
     // -----------------------------------------------------------------------
     // Field layout file paths
     //
@@ -127,12 +129,11 @@ public class AprilTag extends SubsystemBase {
     //
     // REMINDER: the JSON here and the layout uploaded to the Luma P1 must match.
     // -----------------------------------------------------------------------
-    private static final String LOCAL_DEPLOY_JSON =
-            "/home/lvuser/deploy/2026-rebuilt-andymark.json";
+    private static final String FIELD_LAYOUT_FILENAME = "2026-rebuilt-welded.json";
 
-    // Note: we no longer attempt to fetch the AndyMark JSON from GitHub at runtime.
+    // Note: we no longer attempt to fetch the welded JSON from GitHub at runtime.
     // Rely on the deploy file or an embedded resource instead to be competition-safe.
-    private static final String CLASSPATH_RESOURCE = "/2026-rebuilt-andymark.json";
+    private static final String CLASSPATH_RESOURCE = "/2026-rebuilt-welded.json";
 
     // -----------------------------------------------------------------------
     // Internal state
@@ -140,6 +141,8 @@ public class AprilTag extends SubsystemBase {
     private final PhotonCamera camera;
     private final PhotonPoseEstimator poseEstimator;
     private final AprilTagFieldLayout fieldLayout;
+    private final VisionSystemSim visionSim;
+    private final PhotonCameraSim cameraSim;
 
     // Cached from getAllUnreadResults() — updated once per periodic()
     private List<PhotonPipelineResult> currentResults = new ArrayList<>();
@@ -169,6 +172,26 @@ public class AprilTag extends SubsystemBase {
 
         // 2-argument constructor (new API for 2026 — strategy passed per-call)
         poseEstimator = new PhotonPoseEstimator(fieldLayout, ROBOT_TO_CAMERA);
+        VisionSystemSim createdVisionSim = null;
+        PhotonCameraSim createdCameraSim = null;
+        if (RobotBase.isSimulation()) {
+            createdVisionSim = new VisionSystemSim("main");
+            createdVisionSim.addAprilTags(fieldLayout);
+
+            SimCameraProperties cameraProperties = new SimCameraProperties();
+            cameraProperties.setCalibration(1280, 800, Rotation2d.fromDegrees(90.0));
+            cameraProperties.setCalibError(0.35, 0.10);
+            cameraProperties.setFPS(30);
+            cameraProperties.setAvgLatencyMs(35);
+            cameraProperties.setLatencyStdDevMs(5);
+
+            createdCameraSim = new PhotonCameraSim(camera, cameraProperties);
+            createdCameraSim.enableDrawWireframe(true);
+            createdVisionSim.addCamera(createdCameraSim, ROBOT_TO_CAMERA);
+            SmartDashboard.putData("Vision/SimField", createdVisionSim.getDebugField());
+        }
+        visionSim = createdVisionSim;
+        cameraSim = createdCameraSim;
     }
 
     // -----------------------------------------------------------------------
@@ -328,6 +351,13 @@ public class AprilTag extends SubsystemBase {
         return camera.isConnected();
     }
 
+    public void simulationPeriodic(Pose2d robotPose) {
+        if (visionSim == null) {
+            return;
+        }
+        visionSim.update(robotPose);
+    }
+
     // -----------------------------------------------------------------------
     // Field layout access
     // -----------------------------------------------------------------------
@@ -399,8 +429,8 @@ public class AprilTag extends SubsystemBase {
     private boolean isEstimateValid(EstimatedRobotPose estimate) {
         Pose2d pose = estimate.estimatedPose.toPose2d();
 
-        if (pose.getX() < 0 || pose.getX() > FIELD_LENGTH_METERS
-                || pose.getY() < 0 || pose.getY() > FIELD_WIDTH_METERS) {
+        if (pose.getX() < 0 || pose.getX() > fieldLayout.getFieldLength()
+                || pose.getY() < 0 || pose.getY() > fieldLayout.getFieldWidth()) {
             return false;
         }
 
@@ -474,20 +504,20 @@ public class AprilTag extends SubsystemBase {
      * tag coordinates. Both your robot code AND the Luma P1's PhotonVision
      * settings must use the same variant or pose estimates will be wrong.
      *
-     * To deploy the AndyMark JSON locally:
-     *   1. Download 2026-rebuilt-andymark.json from WPILib's allwpilib repo
+     * To deploy the welded JSON locally:
+     *   1. Download 2026-rebuilt-welded.json from WPILib's allwpilib repo
      *   2. Place it in src/main/deploy/
      *   3. Build and deploy — WPILib copies deploy/ to /home/lvuser/deploy/
      */
     private AprilTagFieldLayout loadFieldLayout() {
         // 1. Local file (preferred — works at competition with no internet)
         try {
-            File f = new File(LOCAL_DEPLOY_JSON);
+            File f = new File(Filesystem.getDeployDirectory(), FIELD_LAYOUT_FILENAME);
             if (f.exists()) {
                 AprilTagFieldLayout layout =
                         new ObjectMapper().readValue(f, AprilTagFieldLayout.class);
                 DriverStation.reportWarning(
-                        "AprilTag: loaded AndyMark 2026 layout from local deploy file.", false);
+                        "AprilTag: loaded welded 2026 layout from local deploy file.", false);
                 return layout;
             }
         } catch (IOException e) {
@@ -499,7 +529,7 @@ public class AprilTag extends SubsystemBase {
         try (InputStream is = AprilTag.class.getResourceAsStream(CLASSPATH_RESOURCE)) {
             if (is != null) {
                 AprilTagFieldLayout layout = new ObjectMapper().readValue(is, AprilTagFieldLayout.class);
-                DriverStation.reportWarning("AprilTag: loaded AndyMark 2026 layout from classpath resource.", false);
+                DriverStation.reportWarning("AprilTag: loaded welded 2026 layout from classpath resource.", false);
                 return layout;
             }
         } catch (IOException e) {

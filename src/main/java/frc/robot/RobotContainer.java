@@ -5,6 +5,7 @@
 package frc.robot;
 
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
@@ -25,6 +26,7 @@ import frc.robot.subsystems.auto.RedMiddleAuto;
 import frc.robot.subsystems.intake.hopper.hopper;
 import frc.robot.subsystems.shooter.Shooter;
 import frc.robot.subsystems.intake.intake;
+import org.photonvision.EstimatedRobotPose;
 
 
 /**
@@ -42,6 +44,7 @@ public class RobotContainer {
   private final CommandXboxController m_driverController = new CommandXboxController(0);
   private final CommandXboxController m_operatorController = new CommandXboxController(1);
   private final SendableChooser<Command> autoChooser = new SendableChooser<>();
+  private double lastVisionTimestampSeconds = Double.NaN;
 
   public RobotContainer() {
     SmartDashboard.putData("Auto chooser", autoChooser);
@@ -119,7 +122,7 @@ public class RobotContainer {
 
   private void configureBindings() {
     // Hold X on operator controller for intake preset:
-    // lower intake bar + run pivot wheels + run blue intake wheels.
+    // lower intake bar + run hopper + run pivot wheels + run blue intake wheels.
     // The operator already controls the intake pivot with the right
     // joystick Y axis. To make the preset usable but non-blocking,
     // the preset command will NOT require the intake pivot subsystem.
@@ -130,21 +133,27 @@ public class RobotContainer {
         .whileTrue(
             Commands.startEnd(
                 () -> {
+                  // Move intake arm to intake position and run all intake-feed
+                  // mechanisms inward together.
                   m_intakePivot.moveToIntakePosition();
-                  m_pivotWheels.intakeIn();
                   m_hopper.intakeIn();
+                  m_pivotWheels.intakeIn();
+                  m_wheel.intakeIn();
                   SmartDashboard.putBoolean("Operator/X_PresetActive", true);
                 },
                 () -> {
-                  m_pivotWheels.stop();
+                  // Stop intake-feed motors and stow the intake arm.
                   m_hopper.stop();
+                  m_pivotWheels.stop();
+                  m_wheel.stop();
                   m_intakePivot.moveToStowedPosition();
                   SmartDashboard.putBoolean("Operator/X_PresetActive", false);
                 },
                 /* Intentionally do NOT require m_intakePivot so the operator's
                    joystick control can always run and override the preset. */
+                m_hopper,
                 m_pivotWheels,
-                m_hopper));
+                m_wheel));
 
     // Press B: reset gyro heading to 0 degrees.
     m_driverController.b().onTrue(Commands.runOnce(() -> m_swerveSubsystem.resetGyro(0.0), m_swerveSubsystem));
@@ -265,5 +274,25 @@ public class RobotContainer {
     }
   DriverStation.reportWarning("Auto chooser returned null, falling back to BlueLeftAuto.", false);
   return BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper);
+  }
+
+  public void robotPeriodic() {
+    m_aprilTag.getLatestEstimate().ifPresent(this::addVisionMeasurementToSwerve);
+  }
+
+  public void simulationPeriodic() {
+    m_aprilTag.simulationPeriodic(m_swerveSubsystem.getPose());
+  }
+
+  private void addVisionMeasurementToSwerve(EstimatedRobotPose estimate) {
+    if (estimate.timestampSeconds == lastVisionTimestampSeconds) {
+      return;
+    }
+    lastVisionTimestampSeconds = estimate.timestampSeconds;
+    Pose2d estimatedPose = estimate.estimatedPose.toPose2d();
+    m_swerveSubsystem.addVisionMeasurement(
+        estimatedPose,
+        estimate.timestampSeconds,
+        m_aprilTag.getEstimationStdDevs(estimate));
   }
 }
