@@ -25,7 +25,7 @@ public class Shooter extends SubsystemBase {
   // Starting speed used by the operator preset as a high-but-safe initial command.
   // Set slightly below 1.0 so the shooter can spin up reliably without immediately
   // demanding an absolute maximum.
-  private static final double DEFAULT_SPEED = 0.90;
+  private static final double DEFAULT_SPEED = 1.00;
   // Per-motor tuning multipliers: bias group outputs to better match wheel
   // linear speeds given the differing wheel diameters. These starting values
   // are recommended for initial on-robot testing; fine-tune empirically.
