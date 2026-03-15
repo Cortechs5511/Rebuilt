@@ -20,8 +20,8 @@ public class hopper extends SubsystemBase {
   // Ratios are motor:hopper-shaft.
   private static final double PRIMARY_GEAR_RATIO = 1.0;
   private static final double AUX_GEAR_RATIO = 3.0;
-  // Set to -1.0 so positive feed command spins primary hopper motor counterclockwise.
-  private static final double PRIMARY_FEED_DIRECTION = -1.0;
+  // Shared sign flip so positive feed command matches physical "feed in" direction.
+  private static final double HOPPER_FEED_DIRECTION = -1.0;
 
   private final SparkFlex hopperMotor = new SparkFlex(HOPPER_MOTOR_ID, MotorType.kBrushless);
   private final SparkMax hopperAuxNeo = new SparkMax(HOPPER_AUX_NEO_ID, MotorType.kBrushless);
@@ -76,7 +76,7 @@ public class hopper extends SubsystemBase {
 
   // Convert the shared hopper command into per-motor output with gear-ratio compensation.
   private void setBothFromCommand(double command) {
-    double clamped = MathUtil.clamp(command, -1.0, 1.0);
+    double clamped = MathUtil.clamp(command, -1.0, 1.0) * HOPPER_FEED_DIRECTION;
     double primaryScale = PRIMARY_GEAR_RATIO;
     double auxScale = AUX_GEAR_RATIO;
     double norm = Math.max(primaryScale, auxScale);
@@ -84,13 +84,13 @@ public class hopper extends SubsystemBase {
     double primaryOut = MathUtil.clamp(clamped * (primaryScale / norm), -1.0, 1.0);
     double auxOut = MathUtil.clamp(clamped * (auxScale / norm), -1.0, 1.0);
 
-    // Apply outputs (primary uses configured direction multiplier)
-    hopperMotor.set(primaryOut * PRIMARY_FEED_DIRECTION);
+    // Apply outputs after the shared feed-direction flip.
+    hopperMotor.set(primaryOut);
     hopperAuxNeo.set(auxOut);
 
     // Telemetry to aid debugging on the driver station / Shuffleboard
     SmartDashboard.putNumber("Hopper/Commanded", command);
-    SmartDashboard.putNumber("Hopper/PrimaryOut", primaryOut * PRIMARY_FEED_DIRECTION);
+    SmartDashboard.putNumber("Hopper/PrimaryOut", primaryOut);
     SmartDashboard.putNumber("Hopper/AuxOut", auxOut);
   }
 }

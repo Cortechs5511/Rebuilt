@@ -25,17 +25,17 @@ public class Shooter extends SubsystemBase {
   // Starting speed used by the operator preset as a high-but-safe initial command.
   // Set slightly below 1.0 so the shooter can spin up reliably without immediately
   // demanding an absolute maximum.
-  private static final double DEFAULT_SPEED = 1.00;
+  private static final double DEFAULT_SPEED = 1.50;
   // Per-motor tuning multipliers: bias group outputs to better match wheel
   // linear speeds given the differing wheel diameters. These starting values
   // are recommended for initial on-robot testing; fine-tune empirically.
-  private static final double KRAKEN_SPEED_SCALE = 1.60; // increase Kraken contribution
-  private static final double NEO_SPEED_SCALE = 1.00; // NEO baseline
+  private static final double KRAKEN_SPEED_SCALE = 1.3; // increase Kraken contribution
+  private static final double NEO_SPEED_SCALE = 1.6; // NEO baseline
   // Counter-rotation direction multipliers for Krakens only. NEO directions
   // are handled via per-controller inversion (configured below) for clarity.
-  // Flip Krakens direction (inverted) so positive shooter command spins opposite.
-  private static final double KRAKEN_1_DIR = -1.0;
-  private static final double KRAKEN_2_DIR = 1.0;
+  // These signs define the current "shoot" direction for the rear Kraken wheels.
+  private static final double KRAKEN_1_DIR = 1.0;
+  private static final double KRAKEN_2_DIR = -1.0;
   // Pulley ratios (motor:wheel). Wheel speed = motor speed * (motorPulley / wheelPulley).
   // motor:wheel is the ratio motorPulley/wheelPulley. To compute the motor
   // output required to achieve a wheel speed fraction `s`, we use
@@ -60,11 +60,11 @@ public class Shooter extends SubsystemBase {
     SparkMaxConfig nConfig1 = new SparkMaxConfig();
     nConfig1.idleMode(com.revrobotics.spark.config.SparkBaseConfig.IdleMode.kBrake);
     nConfig1.smartCurrentLimit(40);
-  nConfig1.inverted(true); // NEO 1 inverted (switched)
+  nConfig1.inverted(false); // Front NEO direction flipped for updated wheel layout
     SparkMaxConfig nConfig2 = new SparkMaxConfig();
     nConfig2.idleMode(com.revrobotics.spark.config.SparkBaseConfig.IdleMode.kBrake);
     nConfig2.smartCurrentLimit(40);
-  nConfig2.inverted(false); // NEO 2 not inverted (switched)
+  nConfig2.inverted(true); // Front NEO direction flipped for updated wheel layout
     neo1.configure(nConfig1, com.revrobotics.spark.SparkBase.ResetMode.kResetSafeParameters, com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
     neo2.configure(nConfig2, com.revrobotics.spark.SparkBase.ResetMode.kResetSafeParameters, com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
   }

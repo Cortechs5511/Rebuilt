@@ -122,35 +122,29 @@ public class RobotContainer {
 
   private void configureBindings() {
     // Hold X on operator controller for intake preset:
-    // lower intake bar + run hopper + run pivot wheels + run blue intake wheels.
-    // The operator already controls the intake pivot with the right
-    // joystick Y axis. To make the preset usable but non-blocking,
-    // the preset command will NOT require the intake pivot subsystem.
-    // That way the operator's default joystick control can always run
-    // and override the preset while it's active.
+    // run hopper + run pivot wheels + run blue intake wheels.
+    // The operator keeps full manual control of the intake pivot with the
+    // right joystick Y axis; this preset does not command the pivot.
     m_operatorController
         .x()
         .whileTrue(
             Commands.startEnd(
                 () -> {
-                  // Move intake arm to intake position and run all intake-feed
-                  // mechanisms inward together.
-                  m_intakePivot.moveToIntakePosition();
+                  // Run all intake-feed mechanisms inward together.
                   m_hopper.intakeIn();
                   m_pivotWheels.intakeIn();
                   m_wheel.intakeIn();
                   SmartDashboard.putBoolean("Operator/X_PresetActive", true);
                 },
                 () -> {
-                  // Stop intake-feed motors and stow the intake arm.
+                  // Stop intake-feed motors.
                   m_hopper.stop();
                   m_pivotWheels.stop();
                   m_wheel.stop();
-                  m_intakePivot.moveToStowedPosition();
                   SmartDashboard.putBoolean("Operator/X_PresetActive", false);
                 },
-                /* Intentionally do NOT require m_intakePivot so the operator's
-                   joystick control can always run and override the preset. */
+                /* Intentionally do NOT require m_intakePivot so joystick
+                   control remains fully manual while the preset is active. */
                 m_hopper,
                 m_pivotWheels,
                 m_wheel));
