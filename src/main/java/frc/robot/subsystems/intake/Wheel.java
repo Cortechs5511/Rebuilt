@@ -13,14 +13,20 @@ public class Wheel extends SubsystemBase {
   private static final int WHEEL_MOTOR_ID = 51;
   private static final double MAX_OUTPUT = 0.7;
   private static final double TRIGGER_DEADBAND = 0.05;
+<<<<<<< HEAD
   // NEO 550 on the intake axle. Encoder conversion removed because
   // this subsystem currently runs open-loop percent output.
   // For green wheels in intake (CAN ID 51).
+=======
+
+  // For blue wheels in intake.
+>>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   private final SparkMax wheelMotor = new SparkMax(WHEEL_MOTOR_ID, MotorType.kBrushless);
 
   @SuppressWarnings("deprecation")
   public Wheel() {
     SparkMaxConfig config = new SparkMaxConfig();
+<<<<<<< HEAD
     // Use Brake so the intake wheels resist motion when idle.
     config.idleMode(IdleMode.kBrake);
     config.smartCurrentLimit(20);
@@ -32,6 +38,16 @@ public class Wheel extends SubsystemBase {
   /** Run intake inward at the configured MAX_OUTPUT. */
   public void intakeIn() {
     set(1.0);
+=======
+    config.idleMode(IdleMode.kBrake);
+    config.smartCurrentLimit(40);
+    config.inverted(false);
+    wheelMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+  }
+
+  public void intakeIn() {
+    wheelMotor.set(MAX_OUTPUT);
+>>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   }
 
   public void setFromTriggers(double leftTrigger, double rightTrigger) {
@@ -39,6 +55,7 @@ public class Wheel extends SubsystemBase {
     double right = MathUtil.applyDeadband(rightTrigger, TRIGGER_DEADBAND);
 
     // Right trigger pulls in, left trigger deintakes.
+<<<<<<< HEAD
     double output = (right - left);
     set(output);
   }
@@ -47,6 +64,10 @@ public class Wheel extends SubsystemBase {
   public void set(double speed) {
     double clamped = MathUtil.clamp(speed, -1.0, 1.0) * MAX_OUTPUT;
     wheelMotor.set(clamped);
+=======
+    double output = (right - left) * MAX_OUTPUT;
+    wheelMotor.set(MathUtil.clamp(output, -1.0, 1.0));
+>>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   }
 
   public void stop() {

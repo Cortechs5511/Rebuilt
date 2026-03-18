@@ -2,14 +2,20 @@ package frc.robot.subsystems.shooter;
 
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.controls.DutyCycleOut;
+<<<<<<< HEAD
 import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
+=======
+>>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
 import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+<<<<<<< HEAD
 import edu.wpi.first.wpilibj.Preferences;
 import edu.wpi.first.math.MathUtil;
+=======
+>>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 /**
@@ -26,6 +32,7 @@ public class Shooter extends SubsystemBase {
   private static final int NEO_1_ID = 7;
   private static final int NEO_2_ID = 9; // moved to 9 to avoid conflict with hopper
 
+<<<<<<< HEAD
   // Starting speed used by the operator preset as a normalized fraction ([-1,1]).
   // Default to 0.6 (60%) so the Krakens spin up at a safe, repeatable fraction
   // when the operator presses the A preset.
@@ -35,6 +42,17 @@ public class Shooter extends SubsystemBase {
   // large scale factors caused normalization to cancel expected behavior.
   private static final double KRAKEN_SPEED_SCALE = 1.0;
   private static final double NEO_SPEED_SCALE = 1.0;
+=======
+  // Starting speed used by the operator preset as a high-but-safe initial command.
+  // Set slightly below 1.0 so the shooter can spin up reliably without immediately
+  // demanding an absolute maximum.
+  private static final double DEFAULT_SPEED = 1.50;
+  // Per-motor tuning multipliers: bias group outputs to better match wheel
+  // linear speeds given the differing wheel diameters. These starting values
+  // are recommended for initial on-robot testing; fine-tune empirically.
+  private static final double KRAKEN_SPEED_SCALE = 1.3; // increase Kraken contribution
+  private static final double NEO_SPEED_SCALE = 1.6; // NEO baseline
+>>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   // Counter-rotation direction multipliers for Krakens only. NEO directions
   // are handled via per-controller inversion (configured below) for clarity.
   // These signs define the current "shoot" direction for the rear Kraken wheels.
@@ -62,6 +80,7 @@ public class Shooter extends SubsystemBase {
     // Configure NEO controllers. Use per-controller inversion so hardware
     // wiring/tach polarity is clear in config rather than sign hacks in code.
     SparkMaxConfig nConfig1 = new SparkMaxConfig();
+<<<<<<< HEAD
   nConfig1.idleMode(com.revrobotics.spark.config.SparkBaseConfig.IdleMode.kCoast);
     nConfig1.smartCurrentLimit(40);
   // Flip front NEO direction: swap inversion so neo spin directions are switched
@@ -221,6 +240,30 @@ public class Shooter extends SubsystemBase {
       return neo2.getEncoder().getVelocity();
     } catch (Exception e) {
       return neo2.get();
+=======
+    nConfig1.idleMode(com.revrobotics.spark.config.SparkBaseConfig.IdleMode.kBrake);
+    nConfig1.smartCurrentLimit(40);
+  nConfig1.inverted(false); // Front NEO direction flipped for updated wheel layout
+    SparkMaxConfig nConfig2 = new SparkMaxConfig();
+    nConfig2.idleMode(com.revrobotics.spark.config.SparkBaseConfig.IdleMode.kBrake);
+    nConfig2.smartCurrentLimit(40);
+  nConfig2.inverted(true); // Front NEO direction flipped for updated wheel layout
+    neo1.configure(nConfig1, com.revrobotics.spark.SparkBase.ResetMode.kResetSafeParameters, com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
+    neo2.configure(nConfig2, com.revrobotics.spark.SparkBase.ResetMode.kResetSafeParameters, com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
+  }
+
+  @Override
+  public void periodic() {
+    // Publish shooter diagnostics so operator A preset can be verified on the Dashboard.
+    try {
+      SmartDashboard.putNumber("Shooter/Neo1Output", neo1.get());
+      SmartDashboard.putNumber("Shooter/Neo2Output", neo2.get());
+      SmartDashboard.putNumber("Shooter/Kraken1Vel", getKraken1Velocity());
+      SmartDashboard.putNumber("Shooter/Kraken2Vel", getKraken2Velocity());
+      SmartDashboard.putBoolean("Shooter/AnyActive", Math.abs(neo1.get()) > 0.01 || Math.abs(neo2.get()) > 0.01 || Math.abs(getKraken1Velocity()) > 1.0 || Math.abs(getKraken2Velocity()) > 1.0);
+    } catch (Exception e) {
+      // Ignore telemetry errors to avoid noisy logs on hardware without telemetry support
+>>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
     }
   }
 
@@ -254,11 +297,14 @@ public class Shooter extends SubsystemBase {
   /** Spin all shooter wheels at the given speed ([-1,1]). */
   public void spinAll(double speed) {
     double s = Math.max(-1.0, Math.min(1.0, speed));
+<<<<<<< HEAD
     // Remember the last requested speed so periodic() can re-apply outputs
     // if the closed-loop toggle changes without another spinAll() call.
     lastRequestedSpeed = s;
     // Ensure any preset-A inversion is cleared when running the regular spinAll path
     presetAInvertKraken = false;
+=======
+>>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
     // Convert requested wheel-speed fraction to motor outputs using pulley ratios.
     // The drive ratio is defined as motorPulley/wheelPulley so
     // wheelSpeed = motorSpeed * driveRatio. Therefore motorSpeed = wheelSpeed / driveRatio.
@@ -277,6 +323,7 @@ public class Shooter extends SubsystemBase {
   double krakenOut = krakenRaw * scale;
   double neoOut = neoRaw * scale;
 
+<<<<<<< HEAD
     // If closed-loop is enabled, set the requested RPM and let the PID loop drive the Krakens.
     double requestedRPM = s * MAX_KRAKEN_RPM;
     if (closedLoopEnabled) {
@@ -356,17 +403,28 @@ public class Shooter extends SubsystemBase {
     double neoSet = MathUtil.clamp(neoOut, -1.0, 1.0);
     neo1.set(neoSet);
     neo2.set(neoSet);
+=======
+    // Apply outputs. Krakens use explicit direction multipliers; NEO inversion is handled
+    // in the controller config above (neo2 configured inverted=true).
+    kraken1.setControl(new DutyCycleOut(krakenOut * KRAKEN_1_DIR));
+    kraken2.setControl(new DutyCycleOut(krakenOut * KRAKEN_2_DIR));
+    neo1.set(neoOut);
+    neo2.set(neoOut);
+>>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   }
 
   /** Stop all shooter motors. */
   public void stop() {
     // Stop TalonFX outputs
+<<<<<<< HEAD
     // Clear requested RPM and PID state when stopping.
   requestedKrakenRPM = 0.0;
   // Clear last requested speed so periodic() doesn't immediately re-command motors
   // after a stop() call. lastRequestedSpeed is a normalized fraction in [-1,1].
   lastRequestedSpeed = 0.0;
   presetAInvertKraken = false;
+=======
+>>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
     kraken1.setControl(new DutyCycleOut(0.0));
     kraken2.setControl(new DutyCycleOut(0.0));
     neo1.stopMotor();
