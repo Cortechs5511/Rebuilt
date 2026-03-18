@@ -130,7 +130,6 @@ public class SwerveSubsystem extends SubsystemBase {
             if (!swerveEnabled) {
             return;
             }
-
             swerveDrive.setGyro(new Rotation3d(0.0, 0.0, Math.toRadians(degrees)));
             resetPose(new Pose2d(getPose().getTranslation(), Rotation2d.fromDegrees(degrees)));
             gyroOffset = new Rotation2d();
@@ -224,7 +223,6 @@ public class SwerveSubsystem extends SubsystemBase {
         if (!swerveEnabled) {
             return new Pose2d();
         }
-
         return swerveDrive.getPose();
     }
 
@@ -232,7 +230,6 @@ public class SwerveSubsystem extends SubsystemBase {
         if (!swerveEnabled) {
             return new ChassisSpeeds();
         }
-
         return swerveDrive.getRobotVelocity();
     }
 
@@ -246,7 +243,6 @@ public class SwerveSubsystem extends SubsystemBase {
                 new SwerveModulePosition(0.0, new Rotation2d())
             };
         }
-
         return swerveDrive.getModulePositions();
     } 
 
@@ -254,7 +250,6 @@ public class SwerveSubsystem extends SubsystemBase {
         if (!swerveEnabled) {
             return;
         }
-
         swerveDrive.resetOdometry(pose);
     }
 
@@ -262,7 +257,6 @@ public class SwerveSubsystem extends SubsystemBase {
         if (!swerveEnabled) {
             return;
         }
-
         swerveDrive.addVisionMeasurement(pose, timestampSeconds, stdDevs);
     }
 
@@ -270,7 +264,6 @@ public class SwerveSubsystem extends SubsystemBase {
         if (!swerveEnabled) {
             return;
         }
-
         Rotation2d drivingAngle = swerveDrive.getOdometryHeading().minus(gyroOffset);
         driveRobotRelative(ChassisSpeeds.fromFieldRelativeSpeeds(fieldRelativeSpeeds, drivingAngle));
     }
@@ -279,11 +272,9 @@ public class SwerveSubsystem extends SubsystemBase {
         lastRequestedRobotRelativeSpeeds = robotRelativeSpeeds;
 
         ChassisSpeeds targetSpeeds = ChassisSpeeds.discretize(robotRelativeSpeeds, 0.02);
-
         if (!swerveEnabled) {
             return;
         }
-
         swerveDrive.setChassisSpeeds(targetSpeeds);
     }
 
@@ -291,7 +282,6 @@ public class SwerveSubsystem extends SubsystemBase {
         if (!swerveEnabled) {
             return;
         }
-
         swerveDrive.setModuleStates(targetStates, false);
     }
 
@@ -305,7 +295,6 @@ public class SwerveSubsystem extends SubsystemBase {
                 new SwerveModuleState(0.0, new Rotation2d())
             };
         }
-
         return swerveDrive.getStates();
     }
 
@@ -332,7 +321,6 @@ public class SwerveSubsystem extends SubsystemBase {
             SmartDashboard.putBoolean("IMU/PitchOrRollExceeded", false);
             return;
         }
-
         SwerveModuleState[] currentStates = swerveDrive.getStates();
         double maxAbsDriveCommand = 0.0;
         for (SwerveModuleState state : currentStates) {
@@ -387,6 +375,9 @@ public class SwerveSubsystem extends SubsystemBase {
      * Stop driving (zero wheel speeds) but keep current wheel angles.
      */
     public void stop() {
+        if (!swerveEnabled || swerveDrive == null) {
+            return;
+        }
         swerveDrive.setChassisSpeeds(new ChassisSpeeds());
     }
 
@@ -394,6 +385,9 @@ public class SwerveSubsystem extends SubsystemBase {
      * Stop and set modules to an X pattern (wheels at +/-45deg) to resist being pushed.
      */
     public void stopWithX() {
+        if (!swerveEnabled || swerveDrive == null) {
+            return;
+        }
         swerveDrive.lockPose();
     }
     
