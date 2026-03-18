@@ -81,14 +81,23 @@ public class RobotContainer {
       Commands.startEnd(
         () -> m_hopper.intakeOut(), () -> m_hopper.stop(), m_hopper));
 
+<<<<<<< Updated upstream
   // Driver controls pivot wheels & green wheels with triggers (right = intake in, left = reverse)
+=======
+  // Driver controls pivot wheels & intake wheels with triggers (right = intake in, left = reverse)
+>>>>>>> Stashed changes
   m_pivotWheels.setDefaultCommand(
     Commands.run(
       () -> {
         double out = m_driverController.getRightTriggerAxis() - m_driverController.getLeftTriggerAxis();
         m_pivotWheels.set(out);
+<<<<<<< Updated upstream
   // Green wheels: Wheel.setFromTriggers expects (left,right)
         m_wheel.setFromTriggers(m_driverController.getLeftTriggerAxis(), m_driverController.getRightTriggerAxis());
+=======
+  // Wheel.setFromTriggers expects (left,right)
+  m_wheel.setFromTriggers(m_driverController.getLeftTriggerAxis(), m_driverController.getRightTriggerAxis());
+>>>>>>> Stashed changes
       },
       m_pivotWheels,
       m_wheel));
@@ -121,8 +130,13 @@ public class RobotContainer {
   }
 
   private void configureBindings() {
+<<<<<<< Updated upstream
   // Hold X on operator controller for intake preset:
   // run hopper + run pivot wheels + run green intake wheels.
+=======
+    // Hold X on operator controller for intake preset:
+    // run hopper + run pivot wheels + run intake wheels.
+>>>>>>> Stashed changes
     // The operator keeps full manual control of the intake pivot with the
     // right joystick Y axis; this preset does not command the pivot.
     m_operatorController
