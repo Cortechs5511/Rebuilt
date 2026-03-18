@@ -81,21 +81,13 @@ public class RobotContainer {
       Commands.startEnd(
         () -> m_hopper.intakeOut(), () -> m_hopper.stop(), m_hopper));
 
-<<<<<<< HEAD
   // Driver controls pivot wheels & green wheels with triggers (right = intake in, left = reverse)
-=======
-  // Driver controls pivot wheels & blue wheels with triggers (right = intake in, left = reverse)
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   m_pivotWheels.setDefaultCommand(
     Commands.run(
       () -> {
         double out = m_driverController.getRightTriggerAxis() - m_driverController.getLeftTriggerAxis();
         m_pivotWheels.set(out);
-<<<<<<< HEAD
   // Green wheels: Wheel.setFromTriggers expects (left,right)
-=======
-        // Blue wheels: Wheel.setFromTriggers expects (left,right)
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         m_wheel.setFromTriggers(m_driverController.getLeftTriggerAxis(), m_driverController.getRightTriggerAxis());
       },
       m_pivotWheels,
@@ -114,22 +106,14 @@ public class RobotContainer {
             }
             return RedMiddleAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper);
           },
-<<<<<<< HEAD
           Set.of(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper)));
-=======
-          java.util.Set.of(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper)));
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
 
   // Provide other (placeholder/fallback) options so the driver station chooser
   // has multiple selections. These currently reuse BlueLeftAuto implementation
   // as a safe fallback until specific auto implementations are added.
   autoChooser.addOption("BlueLeftAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper));
   autoChooser.addOption("BlueMiddleAuto", BlueMiddleAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper));
-<<<<<<< HEAD
   // "BlueRightAuto" not implemented; avoid silently running the wrong auto.
-=======
-  autoChooser.addOption("BlueRightAuto", BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper));
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   autoChooser.addOption("RedLeftAuto", RedLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper));
   autoChooser.addOption("RedMiddleAuto", RedMiddleAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper));
 
@@ -137,13 +121,8 @@ public class RobotContainer {
   }
 
   private void configureBindings() {
-<<<<<<< HEAD
   // Hold X on operator controller for intake preset:
   // run hopper + run pivot wheels + run green intake wheels.
-=======
-    // Hold X on operator controller for intake preset:
-    // run hopper + run pivot wheels + run blue intake wheels.
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
     // The operator keeps full manual control of the intake pivot with the
     // right joystick Y axis; this preset does not command the pivot.
     m_operatorController
@@ -193,11 +172,7 @@ public class RobotContainer {
                 Commands.parallel(
                     // Shooter: run until interrupted, then stop and clear the dashboard flag
                     Commands.runEnd(
-<<<<<<< HEAD
                         () -> m_shooter.spinAllPresetA(),
-=======
-                        () -> m_shooter.spinAll(),
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
                         () -> {
                           m_shooter.stop();
                           SmartDashboard.putBoolean("Operator/A_PresetActive", false);
@@ -291,13 +266,8 @@ public class RobotContainer {
     if (selected != null) {
       return selected;
     }
-<<<<<<< HEAD
     DriverStation.reportWarning("Auto chooser returned null, falling back to BlueLeftAuto.", false);
     return BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper);
-=======
-  DriverStation.reportWarning("Auto chooser returned null, falling back to BlueLeftAuto.", false);
-  return BlueLeftAuto.build(m_swerveSubsystem, m_aprilTag, m_shooter, m_pivotWheels, m_intakePivot, m_hopper);
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   }
 
   public void robotPeriodic() {

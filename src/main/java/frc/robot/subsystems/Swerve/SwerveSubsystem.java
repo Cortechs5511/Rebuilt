@@ -31,7 +31,6 @@ import swervelib.telemetry.SwerveDriveTelemetry;
 import swervelib.telemetry.SwerveDriveTelemetry.TelemetryVerbosity;
 
 public class SwerveSubsystem extends SubsystemBase {
-<<<<<<< HEAD
     // TEMPORARY: flip to true to disable YAGSL + swerve initialization at deploy
     private static final boolean TEMP_DISABLE_SWERVE = true;
 
@@ -40,9 +39,6 @@ public class SwerveSubsystem extends SubsystemBase {
     // defaults. This is a temporary mitigation for deploy-time looping.
     private SwerveDrive swerveDrive;
     private final boolean swerveEnabled;
-=======
-    private final SwerveDrive swerveDrive;
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
     private Rotation2d gyroOffset = new Rotation2d();
     // Hardware gyro wrapper used for raw IMU telemetry and zeroing
     private final Gyro hardwareGyro = new Gyro();
@@ -54,7 +50,6 @@ public class SwerveSubsystem extends SubsystemBase {
 
     public SwerveSubsystem() {
         SwerveDriveTelemetry.verbosity = TelemetryVerbosity.LOW;
-<<<<<<< HEAD
         // Respect the temp disable flag so teams can deploy without YAGSL
         // initializing while debugging.
         swerveEnabled = !TEMP_DISABLE_SWERVE;
@@ -68,9 +63,6 @@ public class SwerveSubsystem extends SubsystemBase {
             swerveDrive = null;
             return;
         }
-=======
-        File swerveJsonDirectory = new File(Filesystem.getDeployDirectory(), "swerve");
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         try {
             swerveDrive = new SwerveParser(swerveJsonDirectory).createSwerveDrive(SwerveConstants.MAX_TRANSLATIONAL_SPEED);
         } catch (IOException e) {
@@ -135,13 +127,10 @@ public class SwerveSubsystem extends SubsystemBase {
 
 
         public void resetGyro(double degrees) { 
-<<<<<<< HEAD
             if (!swerveEnabled) {
             return;
             }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
             swerveDrive.setGyro(new Rotation3d(0.0, 0.0, Math.toRadians(degrees)));
             resetPose(new Pose2d(getPose().getTranslation(), Rotation2d.fromDegrees(degrees)));
             gyroOffset = new Rotation2d();
@@ -165,15 +154,12 @@ public class SwerveSubsystem extends SubsystemBase {
 
     @Override 
     public void periodic () {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             // Avoid interacting with YAGSL/swerve drive when disabled.
             SmartDashboard.putBoolean("Swerve/DisabledPeriodic", true);
             return;
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         logStates(); 
         // If heading hold is active, compute rotation command from PID and apply
         if (holdHeading) {
@@ -191,13 +177,10 @@ public class SwerveSubsystem extends SubsystemBase {
 
 
     public void drive(double y, double x, double theta, boolean fieldRelative, boolean alignLimelight, boolean resetGyro) {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             // Temporarily ignore drive commands while swerve is disabled.
             return;
         }
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         ChassisSpeeds newDesiredSpeeds; 
         
         // Centralized rotation handling: apply deadband, scaling, and optionally
@@ -238,29 +221,22 @@ public class SwerveSubsystem extends SubsystemBase {
     }
 
     public Pose2d getPose() {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             return new Pose2d();
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         return swerveDrive.getPose();
     }
 
     public ChassisSpeeds getSpeeds() {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             return new ChassisSpeeds();
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         return swerveDrive.getRobotVelocity();
     }
 
     public SwerveModulePosition[] getPositions() {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             // Return zeroed positions for 4 modules as a safe default
             return new SwerveModulePosition[] {
@@ -271,41 +247,30 @@ public class SwerveSubsystem extends SubsystemBase {
             };
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         return swerveDrive.getModulePositions();
     } 
 
     public void resetPose(Pose2d pose) {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             return;
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         swerveDrive.resetOdometry(pose);
     }
 
     public void addVisionMeasurement(Pose2d pose, double timestampSeconds, Matrix<N3, N1> stdDevs) {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             return;
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         swerveDrive.addVisionMeasurement(pose, timestampSeconds, stdDevs);
     }
 
     public void driveFieldRelative(ChassisSpeeds fieldRelativeSpeeds) {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             return;
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         Rotation2d drivingAngle = swerveDrive.getOdometryHeading().minus(gyroOffset);
         driveRobotRelative(ChassisSpeeds.fromFieldRelativeSpeeds(fieldRelativeSpeeds, drivingAngle));
     }
@@ -315,30 +280,23 @@ public class SwerveSubsystem extends SubsystemBase {
 
         ChassisSpeeds targetSpeeds = ChassisSpeeds.discretize(robotRelativeSpeeds, 0.02);
 
-<<<<<<< HEAD
         if (!swerveEnabled) {
             return;
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         swerveDrive.setChassisSpeeds(targetSpeeds);
     }
 
     public void setStates(SwerveModuleState[] targetStates) {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             return;
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         swerveDrive.setModuleStates(targetStates, false);
     }
 
 
     public SwerveModuleState[] getStates() {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             return new SwerveModuleState[] {
                 new SwerveModuleState(0.0, new Rotation2d()),
@@ -348,13 +306,10 @@ public class SwerveSubsystem extends SubsystemBase {
             };
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         return swerveDrive.getStates();
     }
 
     public void logStates() {
-<<<<<<< HEAD
         if (!swerveEnabled) {
             // Publish placeholder telemetry so dashboards remain readable
             SmartDashboard.putBoolean("Swerve/Diag/RequestedMotion", false);
@@ -378,8 +333,6 @@ public class SwerveSubsystem extends SubsystemBase {
             return;
         }
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         SwerveModuleState[] currentStates = swerveDrive.getStates();
         double maxAbsDriveCommand = 0.0;
         for (SwerveModuleState state : currentStates) {

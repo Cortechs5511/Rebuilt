@@ -23,7 +23,6 @@ public class hopper extends SubsystemBase {
   // Shared sign flip so positive feed command matches physical "feed in" direction.
   private static final double HOPPER_FEED_DIRECTION = -1.0;
 
-<<<<<<< HEAD
   // Small per-motor boosts to slightly increase output for specific CAN IDs
   // (ID 17 = primary SparkFlex, ID 25 = auxiliary NEO). Values >1.0 increase
   // commanded output; keep modest to avoid saturating or stressing hardware.
@@ -31,19 +30,13 @@ public class hopper extends SubsystemBase {
   // Make ID 25 (aux) faster than the primary conveyor (ID 17).
   private static final double HOPPER_AUX_SPEED_BOOST = 2.0; // ~+40%
 
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   private final SparkFlex hopperMotor = new SparkFlex(HOPPER_MOTOR_ID, MotorType.kBrushless);
   private final SparkMax hopperAuxNeo = new SparkMax(HOPPER_AUX_NEO_ID, MotorType.kBrushless);
 
   @SuppressWarnings("deprecation")
   public hopper() {
   SparkFlexConfig config = new SparkFlexConfig();
-<<<<<<< HEAD
   config.idleMode(IdleMode.kCoast);
-=======
-  config.idleMode(IdleMode.kBrake);
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   config.smartCurrentLimit(40);
   // Invert the primary SparkFlex so its physical rotation matches the
   // intended feed direction. If the motor spins the wrong way on robot,
@@ -56,7 +49,6 @@ public class hopper extends SubsystemBase {
   hopperMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
   SparkMaxConfig auxConfig = new SparkMaxConfig();
-<<<<<<< HEAD
   auxConfig.idleMode(IdleMode.kCoast);
   auxConfig.smartCurrentLimit(40);
   // Invert auxiliary NEO so its physical rotation matches intended intake direction
@@ -64,13 +56,6 @@ public class hopper extends SubsystemBase {
   // Flipped to 'false' so ID 25 spins in the opposite direction compared to
   // the previous configuration.
   auxConfig.inverted(false);
-=======
-  auxConfig.idleMode(IdleMode.kBrake);
-  auxConfig.smartCurrentLimit(40);
-  // Invert auxiliary NEO so its physical rotation matches intended intake direction
-  // (ID 25). This flips output direction without changing higher-level command math.
-  auxConfig.inverted(true);
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
   // NEO on id 25 has 3:1 motor:shaft reduction.
   auxConfig.encoder.positionConversionFactor(1.0 / AUX_GEAR_RATIO);
   auxConfig.encoder.velocityConversionFactor(1.0 / AUX_GEAR_RATIO);
@@ -105,14 +90,9 @@ public class hopper extends SubsystemBase {
     double auxScale = AUX_GEAR_RATIO;
     double norm = Math.max(primaryScale, auxScale);
 
-<<<<<<< HEAD
   // Compute per-motor outputs and apply small boost factors for IDs 17/25.
   double primaryOut = MathUtil.clamp(clamped * (primaryScale / norm) * HOPPER_PRIMARY_SPEED_BOOST, -1.0, 1.0);
   double auxOut = MathUtil.clamp(clamped * (auxScale / norm) * HOPPER_AUX_SPEED_BOOST, -1.0, 1.0);
-=======
-    double primaryOut = MathUtil.clamp(clamped * (primaryScale / norm), -1.0, 1.0);
-    double auxOut = MathUtil.clamp(clamped * (auxScale / norm), -1.0, 1.0);
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
 
     // Apply outputs after the shared feed-direction flip.
     hopperMotor.set(primaryOut);

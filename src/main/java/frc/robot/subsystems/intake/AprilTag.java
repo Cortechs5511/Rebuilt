@@ -170,7 +170,6 @@ public class AprilTag extends SubsystemBase {
         fieldLayout = loadFieldLayout();
         camera = new PhotonCamera(cameraName);
 
-<<<<<<< HEAD
         // Construct the estimator with an explicit PoseStrategy so behavior is
         // deterministic across PhotonVision versions. Use the coprocessor
         // multi-tag PNP strategy (best accuracy when the P1 can compute it).
@@ -178,10 +177,6 @@ public class AprilTag extends SubsystemBase {
                 fieldLayout,
                 PhotonPoseEstimator.PoseStrategy.MULTI_TAG_PNP_ON_COPROCESSOR,
                 ROBOT_TO_CAMERA);
-=======
-        // 2-argument constructor (new API for 2026 — strategy passed per-call)
-        poseEstimator = new PhotonPoseEstimator(fieldLayout, ROBOT_TO_CAMERA);
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         VisionSystemSim createdVisionSim = null;
         PhotonCameraSim createdCameraSim = null;
         if (RobotBase.isSimulation()) {
@@ -209,13 +204,9 @@ public class AprilTag extends SubsystemBase {
     // -----------------------------------------------------------------------
     @Override
     public void periodic() {
-<<<<<<< HEAD
         // Advance the poll tick with a safe wrap to avoid integer overflow issues.
         pollTick = (pollTick + 1) % VISION_POLL_DIVISOR;
         if (pollTick != 0) {
-=======
-        if ((pollTick++ % VISION_POLL_DIVISOR) != 0) {
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
             return;
         }
 
@@ -243,11 +234,8 @@ public class AprilTag extends SubsystemBase {
             return;
         }
 
-<<<<<<< HEAD
         // Reset latest result (avoid stale reporting when no targets are visible this cycle).
         latestResultWithTargets = new PhotonPipelineResult();
-=======
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         // Cache the most recent frame that had targets
         for (var result : currentResults) {
             if (result.hasTargets()) {
@@ -260,19 +248,8 @@ public class AprilTag extends SubsystemBase {
         for (var result : currentResults) {
             if (!result.hasTargets()) continue;
 
-<<<<<<< HEAD
             // Use the configured PoseStrategy via a single update call.
             Optional<EstimatedRobotPose> est = poseEstimator.update(result);
-=======
-            // Try multi-tag PNP first (computed on the P1 coprocessor — best accuracy)
-            Optional<EstimatedRobotPose> est =
-                    poseEstimator.estimateCoprocMultiTagPose(result);
-
-            // Fall back to single-tag lowest-ambiguity if multi-tag unavailable
-            if (est.isEmpty()) {
-                est = poseEstimator.estimateLowestAmbiguityPose(result);
-            }
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
 
             if (est.isPresent() && isEstimateValid(est.get())) {
                 latestPoseEstimate = est;
@@ -320,7 +297,6 @@ public class AprilTag extends SubsystemBase {
         int numTags = usedTargets.size();
 
         if (numTags == 0) return SINGLE_TAG_BASE_STD_DEVS;
-<<<<<<< HEAD
         double avgDistMeters = usedTargets.stream()
                 .mapToDouble(t -> {
                     Transform3d c2t = t.getBestCameraToTarget();
@@ -329,13 +305,6 @@ public class AprilTag extends SubsystemBase {
                     return Math.sqrt(c2t.getX() * c2t.getX()
                             + c2t.getY() * c2t.getY()
                             + c2t.getZ() * c2t.getZ());
-=======
-
-        double avgDistMeters = usedTargets.stream()
-                .mapToDouble(t -> {
-                    Transform3d c2t = t.getBestCameraToTarget();
-                    return Math.hypot(c2t.getX(), c2t.getY());
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
                 })
                 .average()
                 .orElse(Double.MAX_VALUE);
@@ -442,15 +411,10 @@ public class AprilTag extends SubsystemBase {
             SmartDashboard.putNumber("Vision/Tag" + tagId + "/PitchDeg",  t.getPitch());
             SmartDashboard.putNumber("Vision/Tag" + tagId + "/Area",      t.getArea());
             SmartDashboard.putNumber("Vision/Tag" + tagId + "/Ambiguity", t.getPoseAmbiguity());
-<<<<<<< HEAD
         SmartDashboard.putNumber("Vision/Tag" + tagId + "/DistM",
             Math.sqrt(c2t.getX() * c2t.getX()
                 + c2t.getY() * c2t.getY()
                 + c2t.getZ() * c2t.getZ()));
-=======
-            SmartDashboard.putNumber("Vision/Tag" + tagId + "/DistM",
-                    Math.hypot(c2t.getX(), c2t.getY()));
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         } else {
             SmartDashboard.putNumber("Vision/Tag" + tagId + "/YawDeg",    0.0);
             SmartDashboard.putNumber("Vision/Tag" + tagId + "/PitchDeg",  0.0);
@@ -471,7 +435,6 @@ public class AprilTag extends SubsystemBase {
      *   3. Single-tag estimates must pass MAX_AMBIGUITY threshold
      */
     private boolean isEstimateValid(EstimatedRobotPose estimate) {
-<<<<<<< HEAD
         // Check 3D Z before converting to 2D — reject estimates with wildly
         // incorrect heights (e.g. floating meters above the field).
         double estZ = estimate.estimatedPose.getZ();
@@ -480,10 +443,6 @@ public class AprilTag extends SubsystemBase {
         }
 
         Pose2d pose = estimate.estimatedPose.toPose2d();
-=======
-        Pose2d pose = estimate.estimatedPose.toPose2d();
-
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         if (pose.getX() < 0 || pose.getX() > fieldLayout.getFieldLength()
                 || pose.getY() < 0 || pose.getY() > fieldLayout.getFieldWidth()) {
             return false;
@@ -493,14 +452,10 @@ public class AprilTag extends SubsystemBase {
 
         boolean tooFar = targets.stream().anyMatch(t -> {
             Transform3d c2t = t.getBestCameraToTarget();
-<<<<<<< HEAD
             double dist = Math.sqrt(c2t.getX() * c2t.getX()
                     + c2t.getY() * c2t.getY()
                     + c2t.getZ() * c2t.getZ());
             return dist > MAX_TAG_DISTANCE_METERS;
-=======
-            return Math.hypot(c2t.getX(), c2t.getY()) > MAX_TAG_DISTANCE_METERS;
->>>>>>> f0a761e460a9184d8456fa0681426b74c1b7342b
         });
         if (tooFar) return false;
 
