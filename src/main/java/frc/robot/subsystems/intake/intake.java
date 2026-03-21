@@ -13,6 +13,7 @@ import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Preferences;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 public class intake extends SubsystemBase {
@@ -28,10 +29,17 @@ public class intake extends SubsystemBase {
   private static final double PIVOT_KI = 0.0;
   private static final double PIVOT_KD = 0.0;
   private static final double PIVOT_TOLERANCE_ROT = 0.75 / PIVOT_GEAR_RATIO;
+  // Small gravity feed-forward to help the PID hold the arm under load.
+  // Tune this on the robot; start small (0.03 - 0.08) and increase as needed.
+  private static final double PIVOT_GRAVITY_FF = 0.06;
   // Minimum (most-retracted / rearward) safe pivot rotation. Tune on robot.
   private static final double MIN_PIVOT_ROT = -0.50;
   private static final double MAX_PIVOT_ROT = 1.50;
-  private static final double STOWED_POSITION_ROT = MIN_PIVOT_ROT;
+  // Keep the stowed target slightly above the hard soft-limit so the PID
+  // doesn't fight the limit clamp directly. Teams should tune this value
+  // on the bench; 0.05 arm-rotations (~18deg at a 45:1 gear) is a reasonable
+  // safety margin to avoid oscillation at the limit.
+  private static final double STOWED_POSITION_ROT = MIN_PIVOT_ROT + 0.05;
   private static final double INTAKE_POSITION_ROT = 18.0 / PIVOT_GEAR_RATIO;
 
   private final SparkMax pivotMotor = new SparkMax(PIVOT_MOTOR_ID, MotorType.kBrushless);
@@ -39,13 +47,29 @@ public class intake extends SubsystemBase {
   private final PIDController pivotController = new PIDController(PIVOT_KP, PIVOT_KI, PIVOT_KD);
 
   private boolean positionControlEnabled = true;
-  private double targetPositionRot = STOWED_POSITION_ROT;
+  private double targetPositionRot;
+  // Preferences key to enable/disable automatic latch-on-enable behavior
+  private static final String PREF_LATCH_ON_ENABLE = "Intake/LatchOnEnable";
+  // Preferences key for persisted stowed preset (arm rotations)
+  private static final String PREF_STOWED_KEY = "Intake/StowedPositionRot";
+  // Preferences key: when true, automatically persist any latched stowed
+  // value to PREF_STOWED_KEY. Default true for convenience; teams can
+  // disable if they prefer manual save behavior.
+  private static final String PREF_AUTO_PERSIST_LATCH = "Intake/AutoPersistOnLatch";
+  // Preferences key for persisted elevated preset (arm rotations)
+  private static final String PREF_ELEVATED_KEY = "Intake/ElevatedPositionRot";
+  private final boolean latchOnEnable;
+
+  // Track previous disabled state to detect transitions
+  private boolean wasDisabled = true;
 
   @SuppressWarnings("deprecation") // REVLib configure() API pending upstream fix
   public intake() {
     SparkMaxConfig config = new SparkMaxConfig();
-    // Start in Brake mode — position control will hold the arm on enable.
-    config.idleMode(IdleMode.kBrake);
+  // Start in Coast mode. Change to Coast so the motor is not actively
+  // resisting motion when disabled; teams may prefer Brake if they want
+  // passive holding while disabled.
+  config.idleMode(IdleMode.kBrake);
     config.smartCurrentLimit(25);
     config.inverted(false);
     // Expose arm rotations in software instead of raw motor rotations.
@@ -53,12 +77,41 @@ public class intake extends SubsystemBase {
     config.encoder.velocityConversionFactor(1.0 / PIVOT_GEAR_RATIO);
     pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
-    // Seed the encoder with the actual reading clamped to the safe travel range.
-    // This guards against out-of-range values at boot due to encoder or wiring issues.
-    double initial = MathUtil.clamp(pivotEncoder.getPosition(), MIN_PIVOT_ROT, MAX_PIVOT_ROT);
-    pivotEncoder.setPosition(initial);
+  // Seed the encoder with the actual reading clamped to the safe travel range.
+  // This guards against out-of-range values at boot due to encoder or wiring issues.
+  double initial = MathUtil.clamp(pivotEncoder.getPosition(), MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+  pivotEncoder.setPosition(initial);
 
     pivotController.setTolerance(PIVOT_TOLERANCE_ROT);
+
+    // Read preference to decide whether to latch current position when the
+    // robot transitions from disabled -> enabled. Default true for safety
+    // (keeps the arm where the driver left it at enable).
+    latchOnEnable = Preferences.getBoolean(PREF_LATCH_ON_ENABLE, true);
+    wasDisabled = DriverStation.isDisabled();
+
+    // Load persisted stowed preset if present. This seeds the relative encoder
+    // so the arm will treat the saved rotation as the true position on boot.
+    if (Preferences.containsKey(PREF_STOWED_KEY)) {
+      double saved = Preferences.getDouble(PREF_STOWED_KEY, STOWED_POSITION_ROT);
+      saved = MathUtil.clamp(saved, MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+      pivotEncoder.setPosition(saved);
+      targetPositionRot = saved;
+      positionControlEnabled = true;
+      DriverStation.reportWarning("Intake: loaded saved stowed preset = " + saved, false);
+    } else {
+      // No persisted stowed preset: initialize the PID target to the current
+      // encoder reading (safer than forcing the STOWED constant which could
+      // command motion if the encoder isn't aligned to the physical arm).
+      targetPositionRot = MathUtil.clamp(pivotEncoder.getPosition(), MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+    }
+    // Load persisted elevated preset presence only; do not change current
+    // target until explicitly requested (we don't auto-move to elevated).
+    if (Preferences.containsKey(PREF_ELEVATED_KEY)) {
+      double savedE = Preferences.getDouble(PREF_ELEVATED_KEY, INTAKE_POSITION_ROT);
+      savedE = MathUtil.clamp(savedE, MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+      DriverStation.reportWarning("Intake: found saved elevated preset = " + savedE, false);
+    }
   }
 
   /**
@@ -95,6 +148,113 @@ public class intake extends SubsystemBase {
   }
 
   /**
+   * Calibrate the encoder by declaring the current physical location to be
+   * the configured STOWED position. This should be run only while the robot
+   * is disabled and the arm is physically placed in the stowed pose.
+   */
+  public void calibrateCurrentPositionAsStowed() {
+    if (!DriverStation.isDisabled()) {
+      DriverStation.reportWarning("Intake calibration must be run while robot is disabled. Aborting.", false);
+      return;
+    }
+
+    pivotEncoder.setPosition(STOWED_POSITION_ROT);
+    targetPositionRot = STOWED_POSITION_ROT;
+    positionControlEnabled = true;
+    DriverStation.reportWarning("Intake pivot calibrated: current physical position set to STOWED.", false);
+  }
+
+  /**
+   * Calibrate the encoder to the current sensor reading (useful when you
+   * physically align the arm to a mark and want to accept the encoder value
+   * as the true position). Must be run while disabled.
+   */
+  public void calibrateToCurrentSensorReading() {
+    if (!DriverStation.isDisabled()) {
+      DriverStation.reportWarning("Intake calibration must be run while robot is disabled. Aborting.", false);
+      return;
+    }
+
+    double cur = MathUtil.clamp(pivotEncoder.getPosition(), MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+    pivotEncoder.setPosition(cur);
+    targetPositionRot = cur;
+    positionControlEnabled = true;
+    DriverStation.reportWarning("Intake pivot calibrated to current sensor reading.", false);
+  }
+
+  /**
+   * Persist the current calibrated elevated position so it survives reboots.
+   * Must be run while robot is disabled and when the arm is physically at
+   * the desired elevated pose.
+   */
+  public void saveElevatedPresetFromCurrent() {
+    if (!DriverStation.isDisabled()) {
+      DriverStation.reportWarning("Intake save preset must be run while robot is disabled. Aborting.", false);
+      return;
+    }
+
+    double cur = MathUtil.clamp(pivotEncoder.getPosition(), MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+    Preferences.setDouble(PREF_ELEVATED_KEY, cur);
+    DriverStation.reportWarning("Saved Intake/ElevatedPositionRot = " + cur, false);
+  }
+
+  /**
+   * Move to the persisted elevated preset if one exists. Returns true when a
+   * saved preset was applied, false otherwise.
+   */
+  public boolean moveToPersistedElevatedIfPresent() {
+    if (!Preferences.containsKey(PREF_ELEVATED_KEY)) return false;
+    double saved = Preferences.getDouble(PREF_ELEVATED_KEY, INTAKE_POSITION_ROT);
+    saved = MathUtil.clamp(saved, MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+    setTargetPositionRot(saved);
+    return true;
+  }
+
+  /**
+   * Persist the current calibrated stowed position so it survives reboots.
+   * Must be run while robot is disabled and when the arm is physically at
+   * the desired stowed pose.
+   */
+  public void saveStowedPresetFromCurrent() {
+    if (!DriverStation.isDisabled()) {
+      DriverStation.reportWarning("Intake save preset must be run while robot is disabled. Aborting.", false);
+      return;
+    }
+
+    double cur = MathUtil.clamp(pivotEncoder.getPosition(), MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+    Preferences.setDouble(PREF_STOWED_KEY, cur);
+    DriverStation.reportWarning("Saved Intake/StowedPositionRot = " + cur, false);
+  }
+
+  /**
+   * Persist a provided numeric value (in arm rotations) as the stowed preset.
+   * This allows entering the numeric encoder value shown on Shuffleboard and
+   * storing it as the fixed stowed position. Must be run while disabled.
+   */
+  public void saveStowedPresetFromValue(double valueRot) {
+    if (!DriverStation.isDisabled()) {
+      DriverStation.reportWarning("Intake save preset must be run while robot is disabled. Aborting.", false);
+      return;
+    }
+
+    double cur = MathUtil.clamp(valueRot, MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+    Preferences.setDouble(PREF_STOWED_KEY, cur);
+    DriverStation.reportWarning("Saved Intake/StowedPositionRot (from value) = " + cur, false);
+  }
+
+  /**
+   * Move to the persisted stowed preset if one exists. Returns true when a
+   * saved preset was applied, false otherwise.
+   */
+  public boolean moveToPersistedStowedIfPresent() {
+    if (!Preferences.containsKey(PREF_STOWED_KEY)) return false;
+    double saved = Preferences.getDouble(PREF_STOWED_KEY, STOWED_POSITION_ROT);
+    saved = MathUtil.clamp(saved, MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+    setTargetPositionRot(saved);
+    return true;
+  }
+
+  /**
    * Set the PID target position, clamped to the safe travel range.
    * Enables position control mode.
    */
@@ -115,10 +275,67 @@ public class intake extends SubsystemBase {
 
   @Override
   public void periodic() {
+    // Detect disabled -> enabled transition and latch current position so
+    // the arm will hold wherever it physically is at the moment of enable.
+    boolean disabled = DriverStation.isDisabled();
+
+    // New: allow operators to press a Shuffleboard/SmartDashboard boolean
+    // "Intake/LatchNow" while DISABLED to immediately latch the current
+    // encoder position and use it as the PID target. This is useful on the
+    // bench to set the desired pose before enabling the robot. The widget
+    // should be a toggle/button that writes true; we reset it to false after
+    // handling so a single press is enough. Optionally auto-persist the latched
+    // value based on PREF_AUTO_PERSIST_LATCH (default true).
+    try {
+      boolean latchNow = edu.wpi.first.wpilibj.smartdashboard.SmartDashboard.getBoolean("Intake/LatchNow", false);
+      if (disabled && latchNow) {
+        double cur = MathUtil.clamp(pivotEncoder.getPosition(), MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+        // Align the relative encoder to the physical pose and set the PID target.
+        pivotEncoder.setPosition(cur);
+        targetPositionRot = cur;
+        positionControlEnabled = true; // will actually hold once enabled
+        // Optionally persist the latched stowed preset so it survives reboot.
+        boolean autoPersist = Preferences.getBoolean(PREF_AUTO_PERSIST_LATCH, true);
+        if (autoPersist) {
+          Preferences.setDouble(PREF_STOWED_KEY, cur);
+          DriverStation.reportWarning("Intake: auto-saved stowed preset = " + cur, false);
+        }
+        // Publish latched value for visibility and clear the widget so the operator doesn't need to toggle it back.
+        edu.wpi.first.wpilibj.smartdashboard.SmartDashboard.putNumber("Intake/LatchedValue", cur);
+        edu.wpi.first.wpilibj.smartdashboard.SmartDashboard.putBoolean("Intake/LatchNow", false);
+        DriverStation.reportWarning("Intake: latched position from Shuffleboard while disabled: " + cur, false);
+      }
+    } catch (Exception e) {
+      // Defensive: do not allow dashboard read failures to break periodic.
+    }
+
+    if (latchOnEnable && wasDisabled && !disabled) {
+      // Just enabled: latch current encoder reading as the target and optionally persist.
+      double cur = MathUtil.clamp(pivotEncoder.getPosition(), MIN_PIVOT_ROT, MAX_PIVOT_ROT);
+      setTargetPositionRot(cur);
+      boolean autoPersist = Preferences.getBoolean(PREF_AUTO_PERSIST_LATCH, true);
+      if (autoPersist) {
+        Preferences.setDouble(PREF_STOWED_KEY, cur);
+        DriverStation.reportWarning("Intake: auto-saved stowed preset on enable = " + cur, false);
+      }
+      // Publish latched value for visibility
+      edu.wpi.first.wpilibj.smartdashboard.SmartDashboard.putNumber("Intake/LatchedValue", cur);
+      DriverStation.reportWarning("Intake: latched current position on enable: " + cur, false);
+    }
+    wasDisabled = disabled;
+
     if (positionControlEnabled) {
       double output = pivotController.calculate(getPivotPositionRot(), targetPositionRot);
-      pivotMotor.set(clampPivotOutput(output));
+      // Simple gravity compensation: assume pivotEncoder returns arm rotations
+      // and convert to radians. Feed-forward is kG * sin(theta).
+      double angleRad = getPivotPositionRot() * 2.0 * Math.PI;
+      double gravityFF = PIVOT_GRAVITY_FF * Math.sin(angleRad);
+      pivotMotor.set(clampPivotOutput(output + gravityFF));
     }
+
+    // Publish current encoder reading so operators can copy the numeric
+    // value from Shuffleboard/SmartDashboard and use it to persist presets.
+    edu.wpi.first.wpilibj.smartdashboard.SmartDashboard.putNumber("Intake/EncoderRot", pivotEncoder.getPosition());
   }
 
   /** Cuts motor output and disables position control. */

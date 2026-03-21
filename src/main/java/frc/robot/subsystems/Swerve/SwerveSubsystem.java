@@ -32,7 +32,12 @@ import swervelib.telemetry.SwerveDriveTelemetry.TelemetryVerbosity;
 
 public class SwerveSubsystem extends SubsystemBase {
     // TEMPORARY: flip to true to disable YAGSL + swerve initialization at deploy
-    private static final boolean TEMP_DISABLE_SWERVE = true;
+    // NOTE: this should NOT be left true for competition deploys. We still
+    // expose a runtime Preferences key to disable swerve if needed for debug
+    // but default to false so teams don't accidentally deploy a non-driving
+    // robot. If swerve remains disabled at startup we'll also report an error
+    // on the Driver Station to make the issue obvious.
+    private static final boolean TEMP_DISABLE_SWERVE = false;
 
     // When TEMP_DISABLE_SWERVE is true, swerveDrive will remain null and all
     // methods that would touch hardware / YAGSL will no-op or return safe
@@ -51,8 +56,16 @@ public class SwerveSubsystem extends SubsystemBase {
     public SwerveSubsystem() {
         SwerveDriveTelemetry.verbosity = TelemetryVerbosity.LOW;
         // Respect the temp disable flag so teams can deploy without YAGSL
-        // initializing while debugging.
-        swerveEnabled = !TEMP_DISABLE_SWERVE;
+        // initializing while debugging. Also allow a runtime override via
+        // Preferences key "Swerve/disableSwerve" so tests can disable swerve
+        // without rebuilding.
+        boolean swerveDisabledAtDeploy = TEMP_DISABLE_SWERVE || Preferences.getBoolean("Swerve/disableSwerve", false);
+        swerveEnabled = !swerveDisabledAtDeploy;
+        if (swerveDisabledAtDeploy) {
+            // Loud warning so deployers notice immediately on the Driver Station
+            DriverStation.reportError("Swerve is DISABLED at deploy (TEMP_DISABLE_SWERVE or Preferences key enabled). Robot will not drive.", false);
+            SmartDashboard.putBoolean("Swerve/DisabledAtDeploy", true);
+        }
 
         File swerveJsonDirectory = new File(Filesystem.getDeployDirectory(), "swerve");
         if (!swerveEnabled) {
@@ -85,11 +98,11 @@ public class SwerveSubsystem extends SubsystemBase {
             hardwareGyro.setYaw(0.0);
         }
         RobotConfig config;
-        try {
-        config = RobotConfig.fromGUISettings();
+    try {
+    config = RobotConfig.fromGUISettings();
 
-        // Configure AutoBuilder last
-        AutoBuilder.configure(
+    // Configure AutoBuilder last
+    AutoBuilder.configure(
                 this::getPose, // Robot pose supplier
                 this::resetPose, // Method to reset odometry (will be called if your auto has a starting pose)
                 this::getSpeeds, // ChassisSpeeds supplier. MUST BE ROBOT RELATIVE
@@ -120,8 +133,11 @@ public class SwerveSubsystem extends SubsystemBase {
                 this // Reference to this subsystem to set requirements
         );
         } catch (Exception e) {
-        // Handle exception as needed
-        e.printStackTrace();
+            // AutoBuilder configuration failed — this will break autonomous.
+            // Make the error obvious on the Driver Station and fail-fast so
+            // teams notice and don't silently run without auto.
+            DriverStation.reportError("Failed to configure AutoBuilder: " + e.getMessage(), false);
+            throw new RuntimeException("Failed to configure AutoBuilder", e);
         }
     }
 
@@ -175,7 +191,7 @@ public class SwerveSubsystem extends SubsystemBase {
     }
 
 
-    public void drive(double y, double x, double theta, boolean fieldRelative, boolean alignLimelight, boolean resetGyro) {
+    public void drive(double y, double x, double theta, boolean fieldRelative, boolean alignLimelight, boolean resetGyroRequest) {
         if (!swerveEnabled) {
             // Temporarily ignore drive commands while swerve is disabled.
             return;
@@ -189,22 +205,22 @@ public class SwerveSubsystem extends SubsystemBase {
 
         // If there's significant translational demand, reduce rotation to avoid sudden lateral propulsion.
         double translationMag = Math.hypot(y, x);
-        if (translationMag > 0.2) {
-            rotInput *= 0.6; // reduce rotation when translating (tunable)
+        if (translationMag > SwerveConstants.TRANSLATION_ROTATION_THRESHOLD) {
+            rotInput *= SwerveConstants.ROTATION_REDUCTION_WHEN_TRANSLATING; // reduce rotation when translating (tunable)
         }
 
-        if (alignLimelight) {
-            newDesiredSpeeds = new ChassisSpeeds(y, x, rotInput);
-        } else {
-            newDesiredSpeeds = new ChassisSpeeds(
+        // Scale inputs consistently so callers can pass -1..1 joystick values.
+        newDesiredSpeeds = new ChassisSpeeds(
                 SwerveConstants.MAX_TRANSLATIONAL_SPEED * y,
                 SwerveConstants.MAX_TRANSLATIONAL_SPEED * x,
                 SwerveConstants.MAX_ROTATIONAL_SPEED * rotInput
-            );
-        }
+        );
 
-        // reset gyro button
-        if (resetGyro) {
+        // reset gyro button: capture the current odometry heading and use it
+        // as an offset for subsequent field-relative driving. This behaves as
+        // a virtual "zero forward" feature; prefer a dedicated command for
+        // clarity but keep the one-shot here for compatibility.
+        if (resetGyroRequest) {
             gyroOffset = swerveDrive.getOdometryHeading();
         }
 
@@ -264,17 +280,27 @@ public class SwerveSubsystem extends SubsystemBase {
         if (!swerveEnabled) {
             return;
         }
+        // NOTE: gyroOffset is applied here so callers can use the "virtual
+        // zero" behavior captured by resetGyroRequest in drive(). Typically
+        // field-relative driving uses the raw odometry heading; applying an
+        // offset changes that origin. Keep this behavior if you intentionally
+        // want a runtime "zero forward" feature, otherwise remove the offset
+        // to use raw odometry.
         Rotation2d drivingAngle = swerveDrive.getOdometryHeading().minus(gyroOffset);
         driveRobotRelative(ChassisSpeeds.fromFieldRelativeSpeeds(fieldRelativeSpeeds, drivingAngle));
     }
 
     public void driveRobotRelative(ChassisSpeeds robotRelativeSpeeds) {
-        lastRequestedRobotRelativeSpeeds = robotRelativeSpeeds;
-
         ChassisSpeeds targetSpeeds = ChassisSpeeds.discretize(robotRelativeSpeeds, 0.02);
         if (!swerveEnabled) {
             return;
         }
+
+        // Only update the cached last-requested speeds when the swerve is
+        // actually enabled. This prevents heading-hold logic from reading a
+        // stale or incorrect cached value while the swerve subsystem is
+        // disabled.
+        lastRequestedRobotRelativeSpeeds = robotRelativeSpeeds;
         swerveDrive.setChassisSpeeds(targetSpeeds);
     }
 

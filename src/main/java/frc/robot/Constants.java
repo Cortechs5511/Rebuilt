@@ -95,6 +95,10 @@ public final class Constants {
     public static final double MAX_TRANSLATIONAL_SPEED = 4.5;
     public static final double MAX_ROTATIONAL_SPEED = MAX_TRANSLATIONAL_SPEED / DRIVE_BASE_RADIUS;
 
+  // Tunable values used by teleop drive logic
+  public static final double TRANSLATION_ROTATION_THRESHOLD = 0.2; // m/s magnitude threshold to reduce rotation
+  public static final double ROTATION_REDUCTION_WHEN_TRANSLATING = 0.6; // scale applied to rotation when translating
+
 
     // Swerve Module Location Constants
     // each module is Math.sqrt(2) * Units.inchesToMeters(23) away from the center

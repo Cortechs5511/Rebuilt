@@ -10,6 +10,9 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
+import edu.wpi.first.wpilibj.shuffleboard.BuiltInWidgets;
+import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.Command;
 import java.util.Set;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -48,6 +51,40 @@ public class RobotContainer {
 
   public RobotContainer() {
     SmartDashboard.putData("Auto chooser", autoChooser);
+
+  // Quick Shuffleboard buttons for intake preset persistence / testing.
+  // These let the operator save stowed/elevated presets while disabled
+  // and move to the elevated preset on demand.
+  // Save Stowed/Elevated buttons
+  Shuffleboard.getTab("Tab1")
+    .add("Save Intake Stowed", new InstantCommand(() -> m_intakePivot.saveStowedPresetFromCurrent()))
+    .withWidget(BuiltInWidgets.kCommand)
+    .withSize(2, 1);
+
+  Shuffleboard.getTab("Tab1")
+    .add("Save Intake Elevated", new InstantCommand(() -> m_intakePivot.saveElevatedPresetFromCurrent()))
+    .withWidget(BuiltInWidgets.kCommand)
+    .withSize(2, 1);
+
+  Shuffleboard.getTab("Tab1")
+    .add("Move to Elevated", new InstantCommand(() -> m_intakePivot.moveToPersistedElevatedIfPresent()))
+    .withWidget(BuiltInWidgets.kCommand)
+    .withSize(2, 1);
+
+  // Numeric entry + button: enter the encoder value shown on Shuffleboard
+  // and save it as the persistent stowed preset.
+  var stowedValueEntry = Shuffleboard.getTab("Tab1")
+    .add("Stowed Value (rot)", 0.0)
+    .withWidget(BuiltInWidgets.kTextView)
+    .getEntry();
+
+  Shuffleboard.getTab("Tab1")
+    .add("Save Stowed From Value", new InstantCommand(() -> {
+      double entered = stowedValueEntry.getDouble(0.0);
+      m_intakePivot.saveStowedPresetFromValue(entered);
+    }))
+    .withWidget(BuiltInWidgets.kCommand)
+    .withSize(2, 1);
 
     // Default teleop swerve mapping: left stick translation, right stick X rotation.
     m_swerveSubsystem.setDefaultCommand(new TeleopSwerve(m_swerveSubsystem, m_driverController));
@@ -151,6 +188,8 @@ public class RobotContainer {
 
     // Press B: reset gyro heading to 0 degrees.
     m_driverController.b().onTrue(Commands.runOnce(() -> m_swerveSubsystem.resetGyro(0.0), m_swerveSubsystem));
+
+    
 
     // Hold A on operator controller to run shooter wheels and (after a short delay)
     // start the hopper feed. Implementation details:
